@@ -90,10 +90,17 @@ function AdminPanel() {
 
   useEffect(() => {
     if (loading) return;
-    if (!session) return navigate({ to: "/auth" });
-    if (!isAdmin) return navigate({ to: "/dashboard" });
+    if (!session) {
+      navigate({ to: "/auth" });
+      return;
+    }
+    if (!isAdmin) {
+      navigate({ to: "/dashboard" });
+      return;
+    }
     load();
   }, [session, loading, isAdmin]);
+
 
   async function load() {
     setFetching(true);

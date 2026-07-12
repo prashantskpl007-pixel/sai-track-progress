@@ -89,10 +89,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         property: "og:description",
         content:
-          "Trusted agreement and document registration services in Kalyan, Maharashtra. Track your application securely.",
+          "Track your agreement and document registration status with Sai Enterprise, Kalyan. View progress, appointments, and download registered agreements.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Sai Enterprise — Agreement Registration Tracking" },
+      { name: "twitter:description", content: "Track your agreement and document registration status with Sai Enterprise, Kalyan. View progress, appointments, and download registered agreements." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d9d4b169-ea05-42d9-a6c4-80c2cc446006/id-preview-5e957b1d--66f18a6e-607c-4bd4-95cb-c435f3d03e2c.lovable.app-1783868585790.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d9d4b169-ea05-42d9-a6c4-80c2cc446006/id-preview-5e957b1d--66f18a6e-607c-4bd4-95cb-c435f3d03e2c.lovable.app-1783868585790.png" },
     ],
     links: [
       {

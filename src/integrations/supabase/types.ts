@@ -14,16 +14,151 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      customers: {
+        Row: {
+          agreement_pdf_path: string | null
+          agreement_type: string
+          application_number: string
+          appointment_date: string | null
+          appointment_location: string | null
+          created_at: string
+          current_status: Database["public"]["Enums"]["registration_status"]
+          customer_name: string
+          id: string
+          mobile_number: string
+          notes: string | null
+          payment_amount: number | null
+          payment_status: Database["public"]["Enums"]["payment_status"]
+          property_address: string | null
+          registration_date: string
+          support_number: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          agreement_pdf_path?: string | null
+          agreement_type: string
+          application_number: string
+          appointment_date?: string | null
+          appointment_location?: string | null
+          created_at?: string
+          current_status?: Database["public"]["Enums"]["registration_status"]
+          customer_name: string
+          id?: string
+          mobile_number: string
+          notes?: string | null
+          payment_amount?: number | null
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          property_address?: string | null
+          registration_date?: string
+          support_number?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          agreement_pdf_path?: string | null
+          agreement_type?: string
+          application_number?: string
+          appointment_date?: string | null
+          appointment_location?: string | null
+          created_at?: string
+          current_status?: Database["public"]["Enums"]["registration_status"]
+          customer_name?: string
+          id?: string
+          mobile_number?: string
+          notes?: string | null
+          payment_amount?: number | null
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          property_address?: string | null
+          registration_date?: string
+          support_number?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      status_updates: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          remarks: string | null
+          status: Database["public"]["Enums"]["registration_status"]
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          remarks?: string | null
+          status: Database["public"]["Enums"]["registration_status"]
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          remarks?: string | null
+          status?: Database["public"]["Enums"]["registration_status"]
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "status_updates_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      claim_first_admin: { Args: { _user_id: string }; Returns: boolean }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "customer"
+      payment_status: "pending" | "partial" | "paid"
+      registration_status:
+        | "application_created"
+        | "documents_received"
+        | "draft_prepared"
+        | "appointment_scheduled"
+        | "biometric_completed"
+        | "registration_submitted"
+        | "registration_completed"
+        | "agreement_ready"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +285,19 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "customer"],
+      payment_status: ["pending", "partial", "paid"],
+      registration_status: [
+        "application_created",
+        "documents_received",
+        "draft_prepared",
+        "appointment_scheduled",
+        "biometric_completed",
+        "registration_submitted",
+        "registration_completed",
+        "agreement_ready",
+      ],
+    },
   },
 } as const

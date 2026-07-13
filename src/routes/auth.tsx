@@ -1,13 +1,21 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { FileCheck, ArrowLeft } from "lucide-react";
+import { FileCheck, ArrowLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { signInCustomer, signInAdmin, signUpAdmin } from "@/lib/auth-helpers";
+import {
+  signInCustomer,
+  signInAdmin,
+  signUpAdmin,
+  findApplicationsByMobile,
+  type MobileApplication,
+} from "@/lib/auth-helpers";
 import { supabase } from "@/integrations/supabase/client";
+import { statusLabel, type RegistrationStatus } from "@/lib/status";
+import { WhatsAppFloatingButton } from "@/components/WhatsAppButton";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -22,13 +30,11 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<"customer" | "admin">("customer");
-
-  // customer form
-  const [appNum, setAppNum] = useState("");
   const [mobile, setMobile] = useState("");
+  const [appNum, setAppNum] = useState("");
+  const [apps, setApps] = useState<MobileApplication[] | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // admin form
   const [adminMode, setAdminMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,23 +47,45 @@ function AuthPage() {
       .from("user_roles")
       .select("role")
       .eq("user_id", session.session.user.id);
-    const isAdmin = roles?.some((r) => r.role === "admin");
-    navigate({ to: isAdmin ? "/admin" : "/dashboard" });
+    const isAdminOrStaff = roles?.some((r) => r.role === "admin" || r.role === "staff");
+    navigate({ to: isAdminOrStaff ? "/admin" : "/dashboard" });
+  }
+
+  async function signInWithApp(applicationNumber: string) {
+    setLoading(true);
+    const { error } = await signInCustomer(applicationNumber, mobile);
+    setLoading(false);
+    if (error) {
+      toast.error("Login failed", { description: "Please contact Sai Enterprise." });
+      return;
+    }
+    toast.success("Welcome!");
+    afterLoginRedirect();
   }
 
   async function handleCustomerLogin(e: React.FormEvent) {
     e.preventDefault();
+    if (!mobile.trim()) return toast.error("Enter your mobile number");
     setLoading(true);
-    const { error } = await signInCustomer(appNum, mobile);
-    setLoading(false);
-    if (error) {
-      toast.error("Invalid application number or mobile number", {
-        description: "Please check the details Sai Enterprise gave you.",
-      });
-      return;
+    try {
+      if (appNum.trim()) {
+        return void (await signInWithApp(appNum.trim()));
+      }
+      const list = await findApplicationsByMobile(mobile);
+      if (list.length === 0) {
+        toast.error("No applications found for this mobile number.", {
+          description: "Please contact Sai Enterprise.",
+        });
+      } else if (list.length === 1) {
+        await signInWithApp(list[0].application_number);
+      } else {
+        setApps(list);
+      }
+    } catch (err: unknown) {
+      toast.error((err as Error).message);
+    } finally {
+      setLoading(false);
     }
-    toast.success("Welcome back!");
-    afterLoginRedirect();
   }
 
   async function handleAdmin(e: React.FormEvent) {
@@ -74,15 +102,12 @@ function AuthPage() {
         setLoading(false);
         return toast.error(error.message);
       }
-      // Try to claim first-admin role (only succeeds if no admin exists yet)
       const { data: session } = await supabase.auth.getSession();
       if (session.session) {
         await supabase.rpc("claim_first_admin", { _user_id: session.session.user.id });
       }
       setLoading(false);
-      toast.success("Admin account created", {
-        description: "If you are the first admin, your role has been activated automatically.",
-      });
+      toast.success("Admin account created");
       afterLoginRedirect();
     }
   }
@@ -90,7 +115,10 @@ function AuthPage() {
   return (
     <div className="min-h-screen bg-navy-gradient">
       <div className="mx-auto max-w-md px-4 py-10">
-        <Link to="/" className="mb-6 inline-flex items-center gap-2 text-sm text-primary-foreground/80 hover:text-primary-foreground">
+        <Link
+          to="/"
+          className="mb-6 inline-flex items-center gap-2 text-sm text-primary-foreground/80 hover:text-primary-foreground"
+        >
           <ArrowLeft className="h-4 w-4" /> Back to home
         </Link>
 
@@ -112,40 +140,69 @@ function AuthPage() {
             </TabsList>
 
             <TabsContent value="customer" className="mt-6">
-              <form className="space-y-4" onSubmit={handleCustomerLogin}>
-                <div className="space-y-2">
-                  <Label htmlFor="appnum">Application Number</Label>
-                  <Input
-                    id="appnum"
-                    placeholder="e.g. SE0001"
-                    value={appNum}
-                    onChange={(e) => setAppNum(e.target.value.toUpperCase())}
-                    required
-                  />
+              {apps ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    We found {apps.length} applications linked to this mobile. Choose one:
+                  </p>
+                  {apps.map((a) => (
+                    <button
+                      key={a.application_number}
+                      onClick={() => signInWithApp(a.application_number)}
+                      disabled={loading}
+                      className="flex w-full items-center justify-between rounded-xl border bg-card p-3 text-left transition hover:border-gold hover:shadow-elegant"
+                    >
+                      <div>
+                        <p className="font-mono font-semibold">{a.application_number}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {a.customer_name} · {a.agreement_type}
+                        </p>
+                        <p className="text-xs">
+                          Status: {statusLabel(a.current_status as RegistrationStatus)}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  ))}
+                  <Button variant="outline" className="w-full" onClick={() => setApps(null)}>
+                    Back
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="mobile">Mobile Number</Label>
-                  <Input
-                    id="mobile"
-                    inputMode="numeric"
-                    placeholder="10-digit mobile number"
-                    value={mobile}
-                    onChange={(e) => setMobile(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-navy-gradient text-primary-foreground shadow-elegant"
-                  size="lg"
-                >
-                  {loading ? "Signing in..." : "Track my application"}
-                </Button>
-                <p className="text-center text-xs text-muted-foreground">
-                  Given by Sai Enterprise at the time of registration.
-                </p>
-              </form>
+              ) : (
+                <form className="space-y-4" onSubmit={handleCustomerLogin}>
+                  <div className="space-y-2">
+                    <Label htmlFor="mobile">Mobile Number</Label>
+                    <Input
+                      id="mobile"
+                      inputMode="numeric"
+                      placeholder="10-digit mobile number"
+                      value={mobile}
+                      onChange={(e) => setMobile(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="appnum">Application Number (optional)</Label>
+                    <Input
+                      id="appnum"
+                      placeholder="e.g. SE0001 (leave blank to see all)"
+                      value={appNum}
+                      onChange={(e) => setAppNum(e.target.value.toUpperCase())}
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-navy-gradient text-primary-foreground shadow-elegant"
+                    size="lg"
+                  >
+                    {loading ? "Searching..." : "Track my application"}
+                  </Button>
+                  <p className="text-center text-xs text-muted-foreground">
+                    Enter your mobile number to see all your applications.
+                  </p>
+                </form>
+              )}
             </TabsContent>
 
             <TabsContent value="admin" className="mt-6">
@@ -183,7 +240,11 @@ function AuthPage() {
                   className="w-full bg-gold-gradient text-gold-foreground shadow-gold"
                   size="lg"
                 >
-                  {loading ? "Please wait..." : adminMode === "signin" ? "Sign in as Admin" : "Create admin account"}
+                  {loading
+                    ? "Please wait..."
+                    : adminMode === "signin"
+                      ? "Sign in"
+                      : "Create admin account"}
                 </Button>
                 <p className="text-center text-xs text-muted-foreground">
                   {adminMode === "signin" ? (
@@ -208,6 +269,7 @@ function AuthPage() {
           </Tabs>
         </div>
       </div>
+      <WhatsAppFloatingButton />
     </div>
   );
 }

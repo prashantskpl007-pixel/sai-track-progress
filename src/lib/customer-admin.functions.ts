@@ -7,12 +7,29 @@ const CustomerInput = z.object({
   mobileNumber: z.string().min(6),
   agreementType: z.string().min(2),
   propertyAddress: z.string().optional().nullable(),
+  customerEmail: z.string().email().optional().nullable(),
   appointmentDate: z.string().optional().nullable(),
   appointmentLocation: z.string().optional().nullable(),
   paymentStatus: z.enum(["pending", "partial", "paid"]).default("pending"),
   paymentAmount: z.number().optional().nullable(),
+  agreementCharges: z.number().optional().nullable(),
+  registrationCharges: z.number().optional().nullable(),
+  serviceCharges: z.number().optional().nullable(),
+  otherCharges: z.number().optional().nullable(),
+  paymentReceived: z.number().optional().nullable(),
+  paymentMethod: z.string().optional().nullable(),
+  paymentDate: z.string().optional().nullable(),
+  assignedStaffId: z.string().uuid().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
+
+async function assertAdminOrStaff(ctx: { supabase: any; userId: string }) {
+  const { data: a } = await ctx.supabase.rpc("has_role", { _user_id: ctx.userId, _role: "admin" });
+  if (a) return "admin";
+  const { data: s } = await ctx.supabase.rpc("has_role", { _user_id: ctx.userId, _role: "staff" });
+  if (s) return "staff";
+  throw new Error("Forbidden");
+}
 
 async function assertAdmin(ctx: { supabase: any; userId: string }) {
   const { data, error } = await ctx.supabase.rpc("has_role", {
@@ -27,7 +44,6 @@ function customerEmail(appNumber: string) {
   return `${appNumber.trim().toLowerCase()}@customer.sai-enterprise.local`;
 }
 
-/** Generate next SE#### application number by scanning existing rows. */
 async function nextApplicationNumber(supabase: any): Promise<string> {
   const { data } = await supabase
     .from("customers")
@@ -41,6 +57,16 @@ async function nextApplicationNumber(supabase: any): Promise<string> {
   return `SE${String(next).padStart(4, "0")}`;
 }
 
+function computeTotals(v: z.infer<typeof CustomerInput>) {
+  const ac = v.agreementCharges ?? 0;
+  const rc = v.registrationCharges ?? 0;
+  const sc = v.serviceCharges ?? 0;
+  const oc = v.otherCharges ?? 0;
+  const total = ac + rc + sc + oc;
+  const received = v.paymentReceived ?? 0;
+  return { total, balance: Math.max(0, total - received) };
+}
+
 export const createCustomer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: z.infer<typeof CustomerInput>) => CustomerInput.parse(data))
@@ -52,7 +78,6 @@ export const createCustomer = createServerFn({ method: "POST" })
     const email = customerEmail(applicationNumber);
     const password = data.mobileNumber.replace(/\s+/g, "");
 
-    // Create auth user (email pre-confirmed so customer can sign in immediately)
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -62,26 +87,36 @@ export const createCustomer = createServerFn({ method: "POST" })
     if (createErr) throw new Error(`Auth create failed: ${createErr.message}`);
     const authUserId = created.user!.id;
 
-    // Grant customer role
     const { error: roleErr } = await supabaseAdmin
       .from("user_roles")
       .insert({ user_id: authUserId, role: "customer" });
     if (roleErr) throw new Error(roleErr.message);
 
-    // Insert customer row
+    const totals = computeTotals(data);
     const { data: row, error: insErr } = await supabaseAdmin
       .from("customers")
       .insert({
         user_id: authUserId,
         customer_name: data.customerName,
         mobile_number: data.mobileNumber,
+        customer_email: data.customerEmail ?? null,
         application_number: applicationNumber,
         agreement_type: data.agreementType,
         property_address: data.propertyAddress ?? null,
         appointment_date: data.appointmentDate ?? null,
         appointment_location: data.appointmentLocation ?? null,
         payment_status: data.paymentStatus,
-        payment_amount: data.paymentAmount ?? null,
+        payment_amount: data.paymentAmount ?? totals.total,
+        agreement_charges: data.agreementCharges ?? 0,
+        registration_charges: data.registrationCharges ?? 0,
+        service_charges: data.serviceCharges ?? 0,
+        other_charges: data.otherCharges ?? 0,
+        total_amount: totals.total,
+        payment_received: data.paymentReceived ?? 0,
+        balance_amount: totals.balance,
+        payment_method: data.paymentMethod ?? null,
+        payment_date: data.paymentDate ?? null,
+        assigned_staff_id: data.assignedStaffId ?? null,
         notes: data.notes ?? null,
       })
       .select("*")
@@ -98,6 +133,7 @@ const UpdateInput = z.object({
   patch: z.object({
     customer_name: z.string().optional(),
     mobile_number: z.string().optional(),
+    customer_email: z.string().nullable().optional(),
     agreement_type: z.string().optional(),
     property_address: z.string().nullable().optional(),
     current_status: z
@@ -116,7 +152,18 @@ const UpdateInput = z.object({
     appointment_location: z.string().nullable().optional(),
     payment_status: z.enum(["pending", "partial", "paid"]).optional(),
     payment_amount: z.number().nullable().optional(),
+    agreement_charges: z.number().nullable().optional(),
+    registration_charges: z.number().nullable().optional(),
+    service_charges: z.number().nullable().optional(),
+    other_charges: z.number().nullable().optional(),
+    total_amount: z.number().nullable().optional(),
+    payment_received: z.number().nullable().optional(),
+    balance_amount: z.number().nullable().optional(),
+    payment_method: z.string().nullable().optional(),
+    payment_date: z.string().nullable().optional(),
+    assigned_staff_id: z.string().uuid().nullable().optional(),
     agreement_pdf_path: z.string().nullable().optional(),
+    last_contacted_at: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
   }),
 });
@@ -125,7 +172,7 @@ export const updateCustomer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: z.infer<typeof UpdateInput>) => UpdateInput.parse(data))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await assertAdminOrStaff(context);
     const { data: row, error } = await context.supabase
       .from("customers")
       .update(data.patch)
@@ -164,7 +211,70 @@ export const claimFirstAdmin = createServerFn({ method: "POST" })
     return { claimed: Boolean(data) };
   });
 
-/** Seed 3 demo customers on first setup. Only works if the caller is admin. */
+/** Internal notes CRUD */
+export const addInternalNote = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { customerId: string; text: string }) =>
+    z.object({ customerId: z.string().uuid(), text: z.string().min(1) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdminOrStaff(context);
+    const { data: row, error } = await context.supabase
+      .from("internal_notes")
+      .insert({
+        customer_id: data.customerId,
+        note_text: data.text,
+        created_by: context.userId,
+        updated_by: context.userId,
+      })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+
+export const deleteInternalNote = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdminOrStaff(context);
+    const { error } = await context.supabase.from("internal_notes").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/** Mark a smart alert as resolved for a customer */
+export const resolveAlert = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { alertKey: string; customerId: string }) =>
+    z.object({ alertKey: z.string().min(1), customerId: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdminOrStaff(context);
+    const { error } = await context.supabase.from("alert_resolutions").upsert({
+      alert_key: data.alertKey,
+      customer_id: data.customerId,
+      resolved_by: context.userId,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/** Mark agreement as downloaded (customer trigger) */
+export const markAgreementDownloaded = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { customerId: string }) =>
+    z.object({ customerId: z.string().uuid() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await context.supabase
+      .from("customers")
+      .update({ agreement_downloaded_at: new Date().toISOString() })
+      .eq("id", data.customerId);
+    return { ok: true };
+  });
+
+/** Seed 3 demo customers on first setup. */
 export const seedDemoCustomers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -227,6 +337,12 @@ export const seedDemoCustomers = createServerFn({ method: "POST" })
         appointment_location:
           s.status === "appointment_scheduled" ? "Sub-Registrar Office, Kalyan" : null,
         payment_status: s.status === "agreement_ready" ? "paid" : "partial",
+        agreement_charges: 3000,
+        registration_charges: 1000,
+        service_charges: 500,
+        total_amount: 4500,
+        payment_received: s.status === "agreement_ready" ? 4500 : 2000,
+        balance_amount: s.status === "agreement_ready" ? 0 : 2500,
         payment_amount: 4500,
       });
     }

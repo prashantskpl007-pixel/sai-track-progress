@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import {
   FileCheck,
   LogOut,
   Phone,
-  MessageCircle,
   MapPin,
   Calendar,
   Download,
@@ -12,6 +12,9 @@ import {
   Circle,
   Loader2,
   IndianRupee,
+  Bell,
+  UserCircle2,
+  ArrowLeftRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +22,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/use-session";
 import { STATUS_STEPS, statusIndex, type RegistrationStatus } from "@/lib/status";
 import { toast } from "sonner";
+import { WhatsAppFloatingButton } from "@/components/WhatsAppButton";
+import { findApplicationsByMobile, signInCustomer, type MobileApplication } from "@/lib/auth-helpers";
+import { markAgreementDownloaded } from "@/lib/customer-admin.functions";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -39,16 +45,39 @@ type Customer = {
   appointment_location: string | null;
   payment_status: "pending" | "partial" | "paid";
   payment_amount: number | null;
+  total_amount: number | null;
+  payment_received: number | null;
+  balance_amount: number | null;
   agreement_pdf_path: string | null;
   support_number: string | null;
   mobile_number: string;
+  assigned_staff_id: string | null;
+};
+
+type Notification = {
+  id: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+};
+
+type HandledBy = {
+  full_name: string;
+  designation: string;
+  mobile_number: string;
+  profile_photo_url: string | null;
 };
 
 function Dashboard() {
   const navigate = useNavigate();
-  const { session, loading, isAdmin } = useSession();
+  const { session, loading, isAdmin, isStaff } = useSession();
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [notifs, setNotifs] = useState<Notification[]>([]);
+  const [handledBy, setHandledBy] = useState<HandledBy | null>(null);
+  const [siblings, setSiblings] = useState<MobileApplication[]>([]);
   const [busy, setBusy] = useState(true);
+  const markDownloaded = useServerFn(markAgreementDownloaded);
 
   useEffect(() => {
     if (loading) return;
@@ -56,7 +85,7 @@ function Dashboard() {
       navigate({ to: "/auth" });
       return;
     }
-    if (isAdmin) {
+    if (isAdmin || isStaff) {
       navigate({ to: "/admin" });
       return;
     }
@@ -67,14 +96,38 @@ function Dashboard() {
         .eq("user_id", session.user.id)
         .maybeSingle();
       if (error) toast.error(error.message);
-      setCustomer(data as Customer | null);
+      const c = data as Customer | null;
+      setCustomer(c);
+      if (c) {
+        const [n, hb, sib] = await Promise.all([
+          supabase
+            .from("notifications")
+            .select("*")
+            .eq("customer_id", c.id)
+            .order("created_at", { ascending: false })
+            .limit(20),
+          supabase.rpc("get_handled_by", { _customer_id: c.id }).maybeSingle(),
+          findApplicationsByMobile(c.mobile_number).catch(() => []),
+        ]);
+        setNotifs((n.data ?? []) as Notification[]);
+        setHandledBy((hb.data as HandledBy | null) ?? null);
+        setSiblings(sib.filter((a) => a.application_number !== c.application_number));
+      }
       setBusy(false);
     })();
-  }, [session, loading, isAdmin, navigate]);
+  }, [session, loading, isAdmin, isStaff, navigate]);
 
   async function signOut() {
     await supabase.auth.signOut();
     navigate({ to: "/auth" });
+  }
+
+  async function switchApp(appNum: string) {
+    if (!customer) return;
+    await supabase.auth.signOut();
+    const { error } = await signInCustomer(appNum, customer.mobile_number);
+    if (error) toast.error("Could not switch application");
+    else window.location.reload();
   }
 
   async function downloadAgreement() {
@@ -84,6 +137,19 @@ function Dashboard() {
       .createSignedUrl(customer.agreement_pdf_path, 300);
     if (error || !data) return toast.error("Could not open agreement");
     window.open(data.signedUrl, "_blank");
+    try {
+      await markDownloaded({ data: { customerId: customer.id } });
+    } catch {
+      /* non-fatal */
+    }
+  }
+
+  async function markAllRead() {
+    if (!customer) return;
+    const unread = notifs.filter((n) => !n.is_read).map((n) => n.id);
+    if (unread.length === 0) return;
+    await supabase.from("notifications").update({ is_read: true }).in("id", unread);
+    setNotifs((prev) => prev.map((n) => ({ ...n, is_read: true })));
   }
 
   if (loading || busy) {
@@ -106,16 +172,17 @@ function Dashboard() {
             Sign out
           </Button>
         </div>
+        <WhatsAppFloatingButton mobile={session?.user.email ?? undefined} />
       </div>
     );
   }
 
   const currentIdx = statusIndex(customer.current_status);
-  const support = customer.support_number ?? "+919876543210";
+  const support = customer.support_number ?? "+919702279566";
+  const unreadCount = notifs.filter((n) => !n.is_read).length;
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="bg-navy-gradient text-primary-foreground">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-3">
@@ -140,6 +207,22 @@ function Dashboard() {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-8">
+        {siblings.length > 0 && (
+          <div className="mb-6 flex flex-wrap items-center gap-2 rounded-xl border bg-secondary p-3">
+            <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Your other applications:</span>
+            {siblings.map((s) => (
+              <button
+                key={s.application_number}
+                onClick={() => switchApp(s.application_number)}
+                className="rounded-md bg-card px-2 py-1 font-mono text-xs font-semibold shadow-sm hover:bg-muted"
+              >
+                {s.application_number}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Summary card */}
         <div className="rounded-2xl border bg-card p-6 shadow-elegant">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -152,9 +235,7 @@ function Dashboard() {
                 Registration date: {new Date(customer.registration_date).toLocaleDateString("en-IN")}
               </p>
             </div>
-            <Badge className="bg-gold-gradient text-gold-foreground">
-              {customer.agreement_type}
-            </Badge>
+            <Badge className="bg-gold-gradient text-gold-foreground">{customer.agreement_type}</Badge>
           </div>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -163,20 +244,12 @@ function Dashboard() {
             <InfoRow label="Property">
               {customer.property_address ?? <span className="text-muted-foreground">—</span>}
             </InfoRow>
-            <InfoRow label="Payment">
+            <InfoRow label="Total / Received / Balance">
               <span className="inline-flex items-center gap-1">
                 <IndianRupee className="h-3.5 w-3.5" />
-                {customer.payment_amount ?? "—"} ·{" "}
-                <span
-                  className={
-                    customer.payment_status === "paid"
-                      ? "text-success"
-                      : customer.payment_status === "partial"
-                        ? "text-gold"
-                        : "text-destructive"
-                  }
-                >
-                  {customer.payment_status.toUpperCase()}
+                {customer.total_amount ?? 0} · {customer.payment_received ?? 0} ·{" "}
+                <span className={customer.balance_amount ? "text-destructive" : "text-success"}>
+                  {customer.balance_amount ?? 0}
                 </span>
               </span>
             </InfoRow>
@@ -214,6 +287,74 @@ function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* Handled By */}
+        {handledBy && (
+          <section className="mt-6 rounded-2xl border bg-card p-5 shadow-elegant">
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">Handled By</p>
+            <div className="mt-2 flex items-center gap-4">
+              {handledBy.profile_photo_url ? (
+                <img
+                  src={handledBy.profile_photo_url}
+                  alt={handledBy.full_name}
+                  className="h-14 w-14 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-navy-gradient text-primary-foreground">
+                  <UserCircle2 className="h-8 w-8" />
+                </div>
+              )}
+              <div className="flex-1">
+                <p className="font-display text-lg font-semibold">{handledBy.full_name}</p>
+                <p className="text-sm text-muted-foreground">{handledBy.designation}</p>
+                <a
+                  href={`tel:${handledBy.mobile_number}`}
+                  className="mt-1 inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                >
+                  <Phone className="h-3.5 w-3.5" /> {handledBy.mobile_number}
+                </a>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Notifications */}
+        <section className="mt-6 rounded-2xl border bg-card p-6 shadow-elegant">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bell className="h-5 w-5 text-gold" />
+              <h2 className="font-display text-xl font-bold">Notifications</h2>
+              {unreadCount > 0 && (
+                <span className="rounded-full bg-destructive px-2 py-0.5 text-xs font-semibold text-destructive-foreground">
+                  {unreadCount} new
+                </span>
+              )}
+            </div>
+            {unreadCount > 0 && (
+              <Button size="sm" variant="ghost" onClick={markAllRead}>
+                Mark all read
+              </Button>
+            )}
+          </div>
+          {notifs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No notifications yet.</p>
+          ) : (
+            <ul className="space-y-3">
+              {notifs.map((n) => (
+                <li
+                  key={n.id}
+                  className={`rounded-lg border p-3 ${n.is_read ? "bg-background" : "bg-secondary"}`}
+                >
+                  <p className="font-semibold">{n.title}</p>
+                  <p className="text-sm text-muted-foreground">{n.message}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {new Date(n.created_at).toLocaleString("en-IN")}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         {/* Progress timeline */}
         <section className="mt-8 rounded-2xl border bg-card p-6 shadow-elegant">
@@ -260,18 +401,15 @@ function Dashboard() {
                 <Phone className="mr-2 h-4 w-4" /> Call {support}
               </Button>
             </a>
-            <a
-              href={`https://wa.me/${support.replace(/[^0-9]/g, "")}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Button className="bg-navy-gradient text-primary-foreground">
-                <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
-              </Button>
-            </a>
           </div>
         </section>
       </main>
+
+      <WhatsAppFloatingButton
+        applicationNumber={customer.application_number}
+        customerName={customer.customer_name}
+        mobile={customer.mobile_number}
+      />
     </div>
   );
 }

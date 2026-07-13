@@ -14,66 +14,296 @@ export type Database = {
   }
   public: {
     Tables: {
+      alert_resolutions: {
+        Row: {
+          alert_key: string
+          customer_id: string | null
+          id: string
+          resolved_at: string
+          resolved_by: string | null
+        }
+        Insert: {
+          alert_key: string
+          customer_id?: string | null
+          id?: string
+          resolved_at?: string
+          resolved_by?: string | null
+        }
+        Update: {
+          alert_key?: string
+          customer_id?: string | null
+          id?: string
+          resolved_at?: string
+          resolved_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_resolutions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_log: {
+        Row: {
+          action: string
+          actor_name: string | null
+          actor_user_id: string | null
+          created_at: string
+          details: Json | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+        }
+        Insert: {
+          action: string
+          actor_name?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+        }
+        Update: {
+          action?: string
+          actor_name?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
+          agreement_charges: number | null
+          agreement_downloaded_at: string | null
           agreement_pdf_path: string | null
           agreement_type: string
           application_number: string
           appointment_date: string | null
           appointment_location: string | null
+          assigned_staff_id: string | null
+          balance_amount: number | null
           created_at: string
           current_status: Database["public"]["Enums"]["registration_status"]
+          customer_email: string | null
           customer_name: string
           id: string
+          last_contacted_at: string | null
           mobile_number: string
           notes: string | null
+          other_charges: number | null
           payment_amount: number | null
+          payment_date: string | null
+          payment_method: string | null
+          payment_received: number | null
           payment_status: Database["public"]["Enums"]["payment_status"]
           property_address: string | null
+          registration_charges: number | null
           registration_date: string
+          service_charges: number | null
           support_number: string | null
+          total_amount: number | null
           updated_at: string
           user_id: string | null
         }
         Insert: {
+          agreement_charges?: number | null
+          agreement_downloaded_at?: string | null
           agreement_pdf_path?: string | null
           agreement_type: string
           application_number: string
           appointment_date?: string | null
           appointment_location?: string | null
+          assigned_staff_id?: string | null
+          balance_amount?: number | null
           created_at?: string
           current_status?: Database["public"]["Enums"]["registration_status"]
+          customer_email?: string | null
           customer_name: string
           id?: string
+          last_contacted_at?: string | null
           mobile_number: string
           notes?: string | null
+          other_charges?: number | null
           payment_amount?: number | null
+          payment_date?: string | null
+          payment_method?: string | null
+          payment_received?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           property_address?: string | null
+          registration_charges?: number | null
           registration_date?: string
+          service_charges?: number | null
           support_number?: string | null
+          total_amount?: number | null
           updated_at?: string
           user_id?: string | null
         }
         Update: {
+          agreement_charges?: number | null
+          agreement_downloaded_at?: string | null
           agreement_pdf_path?: string | null
           agreement_type?: string
           application_number?: string
           appointment_date?: string | null
           appointment_location?: string | null
+          assigned_staff_id?: string | null
+          balance_amount?: number | null
           created_at?: string
           current_status?: Database["public"]["Enums"]["registration_status"]
+          customer_email?: string | null
           customer_name?: string
           id?: string
+          last_contacted_at?: string | null
           mobile_number?: string
           notes?: string | null
+          other_charges?: number | null
           payment_amount?: number | null
+          payment_date?: string | null
+          payment_method?: string | null
+          payment_received?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           property_address?: string | null
+          registration_charges?: number | null
           registration_date?: string
+          service_charges?: number | null
           support_number?: string | null
+          total_amount?: number | null
           updated_at?: string
           user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_assigned_staff_id_fkey"
+            columns: ["assigned_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_notes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          id: string
+          note_text: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          id?: string
+          note_text: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          id?: string
+          note_text?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_notes_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          is_read: boolean
+          message: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          is_read?: boolean
+          message: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff: {
+        Row: {
+          created_at: string
+          designation: string
+          email: string
+          full_name: string
+          id: string
+          is_active: boolean
+          joining_date: string
+          mobile_number: string
+          profile_photo_url: string | null
+          updated_at: string
+          user_id: string | null
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          designation?: string
+          email: string
+          full_name: string
+          id?: string
+          is_active?: boolean
+          joining_date?: string
+          mobile_number: string
+          profile_photo_url?: string | null
+          updated_at?: string
+          user_id?: string | null
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          designation?: string
+          email?: string
+          full_name?: string
+          id?: string
+          is_active?: boolean
+          joining_date?: string
+          mobile_number?: string
+          profile_photo_url?: string | null
+          updated_at?: string
+          user_id?: string | null
+          username?: string | null
         }
         Relationships: []
       }
@@ -139,6 +369,24 @@ export type Database = {
     }
     Functions: {
       claim_first_admin: { Args: { _user_id: string }; Returns: boolean }
+      find_applications_by_mobile: {
+        Args: { _mobile: string }
+        Returns: {
+          agreement_type: string
+          application_number: string
+          current_status: Database["public"]["Enums"]["registration_status"]
+          customer_name: string
+        }[]
+      }
+      get_handled_by: {
+        Args: { _customer_id: string }
+        Returns: {
+          designation: string
+          full_name: string
+          mobile_number: string
+          profile_photo_url: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

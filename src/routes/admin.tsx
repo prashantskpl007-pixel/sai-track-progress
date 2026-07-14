@@ -774,8 +774,8 @@ function AdminPanel() {
               await load();
             }}
             updateFn={updateFn}
-            addNoteFn={useServerFn(addInternalNote)}
-            deleteNoteFn={useServerFn(deleteInternalNote)}
+            addNoteFn={addNoteFn}
+            deleteNoteFn={deleteNoteFn}
           />
         </Dialog>
       )}

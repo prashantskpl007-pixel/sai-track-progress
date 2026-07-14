@@ -161,6 +161,8 @@ function AdminPanel() {
   const deleteStaffFn = useServerFn(deleteStaff);
   const resetPwdFn = useServerFn(resetStaffPassword);
   const resolveAlertFn = useServerFn(resolveAlert);
+  const addNoteFn = useServerFn(addInternalNote);
+  const deleteNoteFn = useServerFn(deleteInternalNote);
 
   useEffect(() => {
     if (loading) return;

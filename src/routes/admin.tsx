@@ -733,7 +733,7 @@ function AdminPanel() {
                     <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                     <XAxis dataKey="month" fontSize={12} />
                     <YAxis fontSize={12} />
-                    <Tooltip formatter={(v: number) => INR(v)} />
+                    <Tooltip formatter={(v: any) => INR(Number(v))} />
                     <Bar dataKey="revenue" fill="#c8a24a" />
                   </BarChart>
                 </ResponsiveContainer>

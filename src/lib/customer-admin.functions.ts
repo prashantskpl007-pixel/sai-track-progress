@@ -140,6 +140,9 @@ const UpdateInput = z.object({
       .enum([
         "application_created",
         "documents_received",
+        "kyc_uploaded",
+        "noc_initiated",
+        "noc_completed",
         "draft_prepared",
         "appointment_scheduled",
         "biometric_completed",

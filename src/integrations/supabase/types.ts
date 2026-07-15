@@ -227,6 +227,59 @@ export type Database = {
           },
         ]
       }
+      kyc_documents: {
+        Row: {
+          created_at: string
+          customer_id: string
+          document_type: Database["public"]["Enums"]["kyc_document_type"]
+          file_name: string
+          file_path: string
+          file_size_bytes: number | null
+          id: string
+          mime_type: string | null
+          remarks: string | null
+          updated_at: string
+          uploaded_by: string | null
+          uploaded_by_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          document_type: Database["public"]["Enums"]["kyc_document_type"]
+          file_name: string
+          file_path: string
+          file_size_bytes?: number | null
+          id?: string
+          mime_type?: string | null
+          remarks?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+          uploaded_by_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          document_type?: Database["public"]["Enums"]["kyc_document_type"]
+          file_name?: string
+          file_path?: string
+          file_size_bytes?: number | null
+          id?: string
+          mime_type?: string | null
+          remarks?: string | null
+          updated_at?: string
+          uploaded_by?: string | null
+          uploaded_by_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kyc_documents_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -363,6 +416,115 @@ export type Database = {
         }
         Relationships: []
       }
+      verification_cases: {
+        Row: {
+          actual_verification_date: string | null
+          assigned_at: string | null
+          assigned_partner_name: string | null
+          assigned_partner_user_id: string | null
+          completion_date: string | null
+          created_at: string
+          customer_id: string
+          id: string
+          scheduled_date: string | null
+          status: Database["public"]["Enums"]["verification_status"]
+          updated_at: string
+          verification_location: string | null
+          verification_remarks: string | null
+          verification_time: string | null
+        }
+        Insert: {
+          actual_verification_date?: string | null
+          assigned_at?: string | null
+          assigned_partner_name?: string | null
+          assigned_partner_user_id?: string | null
+          completion_date?: string | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          scheduled_date?: string | null
+          status?: Database["public"]["Enums"]["verification_status"]
+          updated_at?: string
+          verification_location?: string | null
+          verification_remarks?: string | null
+          verification_time?: string | null
+        }
+        Update: {
+          actual_verification_date?: string | null
+          assigned_at?: string | null
+          assigned_partner_name?: string | null
+          assigned_partner_user_id?: string | null
+          completion_date?: string | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          scheduled_date?: string | null
+          status?: Database["public"]["Enums"]["verification_status"]
+          updated_at?: string
+          verification_location?: string | null
+          verification_remarks?: string | null
+          verification_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_cases_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: true
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      verification_documents: {
+        Row: {
+          created_at: string
+          document_type: Database["public"]["Enums"]["verification_document_type"]
+          file_name: string
+          file_path: string
+          file_size_bytes: number | null
+          id: string
+          mime_type: string | null
+          remarks: string | null
+          uploaded_by: string | null
+          uploaded_by_name: string | null
+          verification_case_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_type: Database["public"]["Enums"]["verification_document_type"]
+          file_name: string
+          file_path: string
+          file_size_bytes?: number | null
+          id?: string
+          mime_type?: string | null
+          remarks?: string | null
+          uploaded_by?: string | null
+          uploaded_by_name?: string | null
+          verification_case_id: string
+        }
+        Update: {
+          created_at?: string
+          document_type?: Database["public"]["Enums"]["verification_document_type"]
+          file_name?: string
+          file_path?: string
+          file_size_bytes?: number | null
+          id?: string
+          mime_type?: string | null
+          remarks?: string | null
+          uploaded_by?: string | null
+          uploaded_by_name?: string | null
+          verification_case_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_documents_verification_case_id_fkey"
+            columns: ["verification_case_id"]
+            isOneToOne: false
+            referencedRelation: "verification_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -387,6 +549,13 @@ export type Database = {
           profile_photo_url: string
         }[]
       }
+      has_any_role: {
+        Args: {
+          _roles: Database["public"]["Enums"]["app_role"][]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -396,7 +565,24 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "customer" | "staff"
+      app_role:
+        | "admin"
+        | "customer"
+        | "staff"
+        | "owner"
+        | "manager"
+        | "verification_partner"
+        | "viewer"
+      kyc_document_type:
+        | "aadhaar"
+        | "pan"
+        | "passport"
+        | "driving_license"
+        | "property_tax_receipt"
+        | "electricity_bill"
+        | "property_documents"
+        | "photograph"
+        | "other"
       payment_status: "pending" | "partial" | "paid"
       registration_status:
         | "application_created"
@@ -407,6 +593,23 @@ export type Database = {
         | "registration_submitted"
         | "registration_completed"
         | "agreement_ready"
+        | "kyc_uploaded"
+        | "noc_initiated"
+        | "noc_completed"
+      verification_document_type:
+        | "noc_certificate"
+        | "police_verification"
+        | "site_visit_photo"
+        | "supporting"
+      verification_status:
+        | "pending_assignment"
+        | "assigned"
+        | "in_progress"
+        | "additional_documents_required"
+        | "on_hold"
+        | "approved"
+        | "rejected"
+        | "completed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -534,7 +737,26 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "customer", "staff"],
+      app_role: [
+        "admin",
+        "customer",
+        "staff",
+        "owner",
+        "manager",
+        "verification_partner",
+        "viewer",
+      ],
+      kyc_document_type: [
+        "aadhaar",
+        "pan",
+        "passport",
+        "driving_license",
+        "property_tax_receipt",
+        "electricity_bill",
+        "property_documents",
+        "photograph",
+        "other",
+      ],
       payment_status: ["pending", "partial", "paid"],
       registration_status: [
         "application_created",
@@ -545,6 +767,25 @@ export const Constants = {
         "registration_submitted",
         "registration_completed",
         "agreement_ready",
+        "kyc_uploaded",
+        "noc_initiated",
+        "noc_completed",
+      ],
+      verification_document_type: [
+        "noc_certificate",
+        "police_verification",
+        "site_visit_photo",
+        "supporting",
+      ],
+      verification_status: [
+        "pending_assignment",
+        "assigned",
+        "in_progress",
+        "additional_documents_required",
+        "on_hold",
+        "approved",
+        "rejected",
+        "completed",
       ],
     },
   },

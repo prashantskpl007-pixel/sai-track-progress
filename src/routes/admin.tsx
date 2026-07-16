@@ -191,14 +191,22 @@ function AdminPanel() {
 
   async function load() {
     setFetching(true);
-    const [cRes, sRes] = await Promise.all([
+    const [cRes, sRes, vRes] = await Promise.all([
       supabase.from("customers").select("*").order("created_at", { ascending: false }),
       supabase.from("staff").select("*").order("created_at", { ascending: false }),
+      supabase.from("verification_cases").select("*").order("created_at", { ascending: false }),
     ]);
     if (cRes.error) toast.error(cRes.error.message);
     if (sRes.error && sRes.error.code !== "PGRST116") toast.error(sRes.error.message);
     setCustomers((cRes.data as Customer[]) ?? []);
     setStaff((sRes.data as Staff[]) ?? []);
+    setVerificationCases((vRes.data as any[]) ?? []);
+    try {
+      const partners = await listPartnersFn({});
+      setVerificationPartners(partners as any[]);
+    } catch {
+      /* ignore for non-admins */
+    }
     setFetching(false);
   }
 

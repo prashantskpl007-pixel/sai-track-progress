@@ -47,8 +47,14 @@ function AuthPage() {
       .from("user_roles")
       .select("role")
       .eq("user_id", session.session.user.id);
-    const isAdminOrStaff = roles?.some((r) => r.role === "admin" || r.role === "staff");
-    navigate({ to: isAdminOrStaff ? "/admin" : "/dashboard" });
+    const set = new Set((roles ?? []).map((r) => r.role));
+    if (set.has("admin") || set.has("owner") || set.has("manager") || set.has("staff") || set.has("viewer")) {
+      navigate({ to: "/admin" });
+    } else if (set.has("verification_partner")) {
+      navigate({ to: "/verification" });
+    } else {
+      navigate({ to: "/dashboard" });
+    }
   }
 
   async function signInWithApp(applicationNumber: string) {

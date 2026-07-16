@@ -158,6 +158,9 @@ function AdminPanel() {
   const [staffCreateOpen, setStaffCreateOpen] = useState(false);
   const [staffEditing, setStaffEditing] = useState<Staff | null>(null);
   const [staffPwdFor, setStaffPwdFor] = useState<Staff | null>(null);
+  const [kycFor, setKycFor] = useState<Customer | null>(null);
+  const [verificationCases, setVerificationCases] = useState<any[]>([]);
+  const [verificationPartners, setVerificationPartners] = useState<any[]>([]);
 
   const createFn = useServerFn(createCustomer);
   const updateFn = useServerFn(updateCustomer);
@@ -170,6 +173,8 @@ function AdminPanel() {
   const resolveAlertFn = useServerFn(resolveAlert);
   const addNoteFn = useServerFn(addInternalNote);
   const deleteNoteFn = useServerFn(deleteInternalNote);
+  const listPartnersFn = useServerFn(listVerificationPartners);
+  const assignCaseFn = useServerFn(assignVerificationCase);
 
   useEffect(() => {
     if (loading) return;

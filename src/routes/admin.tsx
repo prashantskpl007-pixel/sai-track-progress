@@ -82,6 +82,11 @@ import {
   resetStaffPassword,
 } from "@/lib/staff-admin.functions";
 import { AGREEMENT_TYPES, STATUS_STEPS, statusLabel, type RegistrationStatus } from "@/lib/status";
+import { KycPanel } from "@/components/KycPanel";
+import {
+  listVerificationPartners,
+  assignVerificationCase,
+} from "@/lib/verification.functions";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({

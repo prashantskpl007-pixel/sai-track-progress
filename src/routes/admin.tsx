@@ -591,7 +591,10 @@ function AdminPanel() {
                               </span>
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>
+                              <Button size="sm" variant="ghost" title="KYC Documents" onClick={() => setKycFor(c)}>
+                                <FileText className="h-4 w-4" />
+                              </Button>
+                              <Button size="sm" variant="ghost" title="Edit" onClick={() => setEditing(c)}>
                                 <Pencil className="h-4 w-4" />
                               </Button>
                               <Button

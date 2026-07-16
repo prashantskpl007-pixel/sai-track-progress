@@ -746,6 +746,30 @@ function AdminPanel() {
             </div>
           </TabsContent>
 
+          {/* ===== VERIFICATION CONTROL CENTER ===== */}
+          <TabsContent value="verification">
+            <VerificationControlCenter
+              cases={verificationCases}
+              customers={customers}
+              partners={verificationPartners}
+              onAssign={async (caseId, partner) => {
+                try {
+                  await assignCaseFn({
+                    data: {
+                      caseId,
+                      partnerUserId: partner.user_id,
+                      partnerName: partner.full_name,
+                    },
+                  });
+                  toast.success(`Assigned to ${partner.full_name}`);
+                  await load();
+                } catch (e: any) {
+                  toast.error(e.message);
+                }
+              }}
+            />
+          </TabsContent>
+
           {/* ===== ANALYTICS ===== */}
           <TabsContent value="analytics">
             <div className="grid gap-6 lg:grid-cols-2">

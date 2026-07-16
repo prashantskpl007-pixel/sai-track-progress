@@ -23,6 +23,7 @@ import {
   KeyRound,
   StickyNote,
   ShieldCheck,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

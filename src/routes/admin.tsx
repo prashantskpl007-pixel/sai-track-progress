@@ -416,6 +416,7 @@ function AdminPanel() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="verification"><ShieldCheck className="mr-1.5 h-4 w-4" />Verification</TabsTrigger>
             <TabsTrigger value="analytics"><BarChart3 className="mr-1.5 h-4 w-4" />Analytics</TabsTrigger>
           </TabsList>
 

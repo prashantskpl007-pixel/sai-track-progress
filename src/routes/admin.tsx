@@ -22,6 +22,7 @@ import {
   History,
   KeyRound,
   StickyNote,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -368,6 +369,13 @@ function AdminPanel() {
                 <Sparkles className="mr-2 h-4 w-4" /> Add sample data
               </Button>
             )}
+            <Button
+              variant="outline"
+              className="border-white/30 bg-white/5 text-primary-foreground hover:bg-white/10"
+              onClick={() => navigate({ to: "/verification" })}
+            >
+              <ShieldCheck className="mr-2 h-4 w-4" /> Verification
+            </Button>
             <Button variant="ghost" className="text-primary-foreground hover:bg-white/10" onClick={signOut}>
               <LogOut className="mr-2 h-4 w-4" /> Sign out
             </Button>

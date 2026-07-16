@@ -23,6 +23,7 @@ import {
   KeyRound,
   StickyNote,
   ShieldCheck,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +82,11 @@ import {
   resetStaffPassword,
 } from "@/lib/staff-admin.functions";
 import { AGREEMENT_TYPES, STATUS_STEPS, statusLabel, type RegistrationStatus } from "@/lib/status";
+import { KycPanel } from "@/components/KycPanel";
+import {
+  listVerificationPartners,
+  assignVerificationCase,
+} from "@/lib/verification.functions";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -152,6 +158,9 @@ function AdminPanel() {
   const [staffCreateOpen, setStaffCreateOpen] = useState(false);
   const [staffEditing, setStaffEditing] = useState<Staff | null>(null);
   const [staffPwdFor, setStaffPwdFor] = useState<Staff | null>(null);
+  const [kycFor, setKycFor] = useState<Customer | null>(null);
+  const [verificationCases, setVerificationCases] = useState<any[]>([]);
+  const [verificationPartners, setVerificationPartners] = useState<any[]>([]);
 
   const createFn = useServerFn(createCustomer);
   const updateFn = useServerFn(updateCustomer);
@@ -164,6 +173,8 @@ function AdminPanel() {
   const resolveAlertFn = useServerFn(resolveAlert);
   const addNoteFn = useServerFn(addInternalNote);
   const deleteNoteFn = useServerFn(deleteInternalNote);
+  const listPartnersFn = useServerFn(listVerificationPartners);
+  const assignCaseFn = useServerFn(assignVerificationCase);
 
   useEffect(() => {
     if (loading) return;
@@ -180,14 +191,22 @@ function AdminPanel() {
 
   async function load() {
     setFetching(true);
-    const [cRes, sRes] = await Promise.all([
+    const [cRes, sRes, vRes] = await Promise.all([
       supabase.from("customers").select("*").order("created_at", { ascending: false }),
       supabase.from("staff").select("*").order("created_at", { ascending: false }),
+      supabase.from("verification_cases").select("*").order("created_at", { ascending: false }),
     ]);
     if (cRes.error) toast.error(cRes.error.message);
     if (sRes.error && sRes.error.code !== "PGRST116") toast.error(sRes.error.message);
     setCustomers((cRes.data as Customer[]) ?? []);
     setStaff((sRes.data as Staff[]) ?? []);
+    setVerificationCases((vRes.data as any[]) ?? []);
+    try {
+      const partners = await listPartnersFn({});
+      setVerificationPartners(partners as any[]);
+    } catch {
+      /* ignore for non-admins */
+    }
     setFetching(false);
   }
 
@@ -397,6 +416,7 @@ function AdminPanel() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="verification"><ShieldCheck className="mr-1.5 h-4 w-4" />Verification</TabsTrigger>
             <TabsTrigger value="analytics"><BarChart3 className="mr-1.5 h-4 w-4" />Analytics</TabsTrigger>
           </TabsList>
 
@@ -571,7 +591,10 @@ function AdminPanel() {
                               </span>
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>
+                              <Button size="sm" variant="ghost" title="KYC Documents" onClick={() => setKycFor(c)}>
+                                <FileText className="h-4 w-4" />
+                              </Button>
+                              <Button size="sm" variant="ghost" title="Edit" onClick={() => setEditing(c)}>
                                 <Pencil className="h-4 w-4" />
                               </Button>
                               <Button
@@ -723,6 +746,30 @@ function AdminPanel() {
             </div>
           </TabsContent>
 
+          {/* ===== VERIFICATION CONTROL CENTER ===== */}
+          <TabsContent value="verification">
+            <VerificationControlCenter
+              cases={verificationCases}
+              customers={customers}
+              partners={verificationPartners}
+              onAssign={async (caseId, partner) => {
+                try {
+                  await assignCaseFn({
+                    data: {
+                      caseId,
+                      partnerUserId: partner.user_id,
+                      partnerName: partner.full_name,
+                    },
+                  });
+                  toast.success(`Assigned to ${partner.full_name}`);
+                  await load();
+                } catch (e: any) {
+                  toast.error(e.message);
+                }
+              }}
+            />
+          </TabsContent>
+
           {/* ===== ANALYTICS ===== */}
           <TabsContent value="analytics">
             <div className="grid gap-6 lg:grid-cols-2">
@@ -811,9 +858,200 @@ function AdminPanel() {
           />
         </Dialog>
       )}
+
+      {kycFor && (
+        <Dialog open onOpenChange={(o) => !o && setKycFor(null)}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                KYC Documents · {kycFor.application_number} · {kycFor.customer_name}
+              </DialogTitle>
+            </DialogHeader>
+            <KycPanel customerId={kycFor.id} applicationNumber={kycFor.application_number} />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
+
+function VerificationControlCenter({
+  cases,
+  customers,
+  partners,
+  onAssign,
+}: {
+  cases: any[];
+  customers: Customer[];
+  partners: any[];
+  onAssign: (caseId: string, partner: any) => Promise<void>;
+}) {
+  const customerById = useMemo(() => {
+    const m = new Map<string, Customer>();
+    customers.forEach((c) => m.set(c.id, c));
+    return m;
+  }, [customers]);
+
+  const stats = useMemo(() => {
+    const s = { total: cases.length, unassigned: 0, inProgress: 0, completed: 0, onHold: 0 };
+    cases.forEach((c) => {
+      if (!c.assigned_partner_user_id) s.unassigned += 1;
+      if (c.status === "in_progress") s.inProgress += 1;
+      if (c.status === "completed" || c.status === "verified") s.completed += 1;
+      if (c.status === "on_hold") s.onHold += 1;
+    });
+    return s;
+  }, [cases]);
+
+  const partnerPerf = useMemo(() => {
+    const map = new Map<string, { name: string; total: number; completed: number }>();
+    partners.forEach((p) =>
+      map.set(p.user_id, { name: p.full_name, total: 0, completed: 0 }),
+    );
+    cases.forEach((c) => {
+      if (!c.assigned_partner_user_id) return;
+      const row = map.get(c.assigned_partner_user_id);
+      if (!row) return;
+      row.total += 1;
+      if (c.status === "completed" || c.status === "verified") row.completed += 1;
+    });
+    return Array.from(map.values());
+  }, [partners, cases]);
+
+  const statusTone = (s: string) => {
+    if (s === "completed" || s === "verified") return "bg-success/15 text-success border-success/40";
+    if (s === "in_progress") return "bg-primary/10 text-primary border-primary/40";
+    if (s === "on_hold") return "bg-gold/15 text-gold border-gold/40";
+    if (s === "rejected") return "bg-destructive/10 text-destructive border-destructive/40";
+    return "bg-muted text-muted-foreground border-border";
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <StatCard icon={ShieldCheck} label="Total cases" value={String(stats.total)} />
+        <StatCard icon={AlertTriangle} label="Unassigned" value={String(stats.unassigned)} tone="gold" />
+        <StatCard icon={Clock} label="In progress" value={String(stats.inProgress)} />
+        <StatCard icon={CheckCircle2} label="Completed" value={String(stats.completed)} tone="success" />
+        <StatCard icon={AlertTriangle} label="On hold" value={String(stats.onHold)} tone="gold" />
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border bg-card shadow-elegant">
+        <div className="border-b p-4">
+          <h3 className="font-display font-semibold">All verification cases</h3>
+          <p className="text-sm text-muted-foreground">Assign partners and track progress.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-secondary text-left text-xs uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3">App #</th>
+                <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Partner</th>
+                <th className="px-4 py-3">Scheduled</th>
+                <th className="px-4 py-3">Assign</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cases.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-10 text-center text-muted-foreground">
+                    No verification cases yet.
+                  </td>
+                </tr>
+              ) : (
+                cases.map((v) => {
+                  const cust = customerById.get(v.customer_id);
+                  return (
+                    <tr key={v.id} className="border-t hover:bg-muted/40">
+                      <td className="px-4 py-3 font-mono font-semibold">
+                        {cust?.application_number ?? "—"}
+                      </td>
+                      <td className="px-4 py-3">{cust?.customer_name ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded border px-2 py-0.5 text-xs ${statusTone(v.status)}`}>
+                          {v.status?.replaceAll("_", " ") ?? "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        {v.assigned_partner_name ?? (
+                          <span className="text-muted-foreground">Unassigned</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {v.scheduled_date
+                          ? new Date(v.scheduled_date).toLocaleDateString("en-IN")
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Select
+                          value={v.assigned_partner_user_id ?? ""}
+                          onValueChange={(uid) => {
+                            const p = partners.find((x) => x.user_id === uid);
+                            if (p) onAssign(v.id, p);
+                          }}
+                        >
+                          <SelectTrigger className="h-8 w-40">
+                            <SelectValue placeholder="Assign partner" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {partners.length === 0 ? (
+                              <SelectItem value="none" disabled>
+                                No partners
+                              </SelectItem>
+                            ) : (
+                              partners.map((p) => (
+                                <SelectItem key={p.user_id} value={p.user_id}>
+                                  {p.full_name}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border bg-card p-6 shadow-elegant">
+        <h3 className="font-display font-semibold">Partner performance</h3>
+        {partnerPerf.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            No verification partners yet. Create one from the Verification dashboard.
+          </p>
+        ) : (
+          <table className="mt-3 w-full text-sm">
+            <thead className="text-left text-xs uppercase text-muted-foreground">
+              <tr>
+                <th className="py-2">Partner</th>
+                <th>Assigned</th>
+                <th>Completed</th>
+                <th>Completion %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {partnerPerf.map((p) => (
+                <tr key={p.name} className="border-t">
+                  <td className="py-2">{p.name}</td>
+                  <td>{p.total}</td>
+                  <td>{p.completed}</td>
+                  <td>{p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 function StatCard({
   icon: Icon,

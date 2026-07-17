@@ -14,6 +14,7 @@ const VerificationStatus = z.enum([
   "pending_assignment",
   "assigned",
   "in_progress",
+  "partial_completed",
   "additional_documents_required",
   "on_hold",
   "approved",

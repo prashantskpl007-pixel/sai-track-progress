@@ -19,7 +19,11 @@ const CustomerInput = z.object({
   paymentReceived: z.number().optional().nullable(),
   paymentMethod: z.string().optional().nullable(),
   paymentDate: z.string().optional().nullable(),
-  assignedStaffId: z.string().uuid().optional().nullable(),
+  // Registration Staff — MANDATORY
+  assignedStaffId: z.string().uuid(),
+  // Verification Partner — MANDATORY (selected at registration)
+  verificationPartnerUserId: z.string().uuid(),
+  verificationPartnerName: z.string().min(1),
   notes: z.string().optional().nullable(),
 });
 

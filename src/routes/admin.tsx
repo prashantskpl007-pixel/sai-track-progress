@@ -752,6 +752,7 @@ function AdminPanel() {
             <VerificationControlCenter
               cases={verificationCases}
               customers={customers}
+              staff={staff}
               partners={verificationPartners}
               onAssign={async (caseId, partner) => {
                 try {

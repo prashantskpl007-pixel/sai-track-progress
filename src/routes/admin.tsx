@@ -1150,16 +1150,32 @@ function CustomerFormDialog({
               <SelectContent>{AGREEMENT_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
-          <Field label="Assigned Staff">
-            <Select value={values.assignedStaffId || "none"} onValueChange={(v) => setValues({ ...values, assignedStaffId: v === "none" ? "" : v })}>
-              <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+          <Field label="Registration Staff (required)">
+            <Select value={values.assignedStaffId} onValueChange={(v) => setValues({ ...values, assignedStaffId: v })}>
+              <SelectTrigger><SelectValue placeholder="Select staff..." /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Unassigned</SelectItem>
                 {staff.filter((s) => s.is_active).map((s) => <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>)}
               </SelectContent>
             </Select>
           </Field>
         </div>
+        <Field label="Verification Partner (required)">
+          <Select
+            value={values.verificationPartnerUserId}
+            onValueChange={(v) => setValues({ ...values, verificationPartnerUserId: v })}
+          >
+            <SelectTrigger><SelectValue placeholder="Select verification partner..." /></SelectTrigger>
+            <SelectContent>
+              {partners.length === 0 ? (
+                <SelectItem value="none" disabled>No verification partners — add one first</SelectItem>
+              ) : (
+                partners.map((p) => (
+                  <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        </Field>
         <Field label="Property Address">
           <Textarea rows={2} value={values.propertyAddress} onChange={(e) => setValues({ ...values, propertyAddress: e.target.value })} />
         </Field>

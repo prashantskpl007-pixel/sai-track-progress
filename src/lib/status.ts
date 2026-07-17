@@ -49,6 +49,7 @@ export type VerificationStatus =
   | "pending_assignment"
   | "assigned"
   | "in_progress"
+  | "partial_completed"
   | "additional_documents_required"
   | "on_hold"
   | "approved"
@@ -56,9 +57,10 @@ export type VerificationStatus =
   | "completed";
 
 export const VERIFICATION_STATUSES: { key: VerificationStatus; label: string }[] = [
-  { key: "pending_assignment", label: "Pending Assignment" },
+  { key: "pending_assignment", label: "Pending" },
   { key: "assigned", label: "Assigned" },
   { key: "in_progress", label: "In Progress" },
+  { key: "partial_completed", label: "Partial Completed" },
   { key: "additional_documents_required", label: "Additional Documents Required" },
   { key: "on_hold", label: "On Hold" },
   { key: "approved", label: "Approved" },
@@ -70,15 +72,16 @@ export function verificationStatusLabel(s: VerificationStatus) {
   return VERIFICATION_STATUSES.find((x) => x.key === s)?.label ?? s;
 }
 
-// UI sort order for Verification Partner dashboard
+// UI sort order (Pending first, Completed last)
 export const VERIFICATION_SORT_ORDER: VerificationStatus[] = [
   "pending_assignment",
   "assigned",
   "additional_documents_required",
   "in_progress",
+  "partial_completed",
   "on_hold",
-  "approved",
   "rejected",
+  "approved",
   "completed",
 ];
 

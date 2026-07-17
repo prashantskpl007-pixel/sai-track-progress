@@ -1098,9 +1098,11 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 function CustomerFormDialog({
   onSubmit,
   staff,
+  partners,
 }: {
   onSubmit: (values: any) => Promise<void>;
   staff: Staff[];
+  partners: any[];
 }) {
   const [values, setValues] = useState({
     customerName: "",
@@ -1116,6 +1118,7 @@ function CustomerFormDialog({
     paymentReceived: "",
     paymentMethod: "",
     assignedStaffId: "",
+    verificationPartnerUserId: "",
     notes: "",
   });
   const [busy, setBusy] = useState(false);

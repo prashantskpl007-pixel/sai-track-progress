@@ -128,6 +128,9 @@ export const updateVerificationCase = createServerFn({ method: "POST" })
       verification_time?: string | null;
       verification_location?: string | null;
       verification_remarks?: string | null;
+      rejection_reason?: string | null;
+      pending_work_details?: string | null;
+      missing_documents?: string | null;
     }) =>
       z
         .object({
@@ -139,6 +142,26 @@ export const updateVerificationCase = createServerFn({ method: "POST" })
           verification_time: z.string().nullable().optional(),
           verification_location: z.string().nullable().optional(),
           verification_remarks: z.string().max(2000).nullable().optional(),
+          rejection_reason: z.string().max(2000).nullable().optional(),
+          pending_work_details: z.string().max(2000).nullable().optional(),
+          missing_documents: z.string().max(2000).nullable().optional(),
+        })
+        .superRefine((val, ctx) => {
+          if (val.status === "rejected" && !val.rejection_reason?.trim()) {
+            ctx.addIssue({ code: "custom", path: ["rejection_reason"], message: "Rejection reason is mandatory" });
+          }
+          if (val.status === "partial_completed") {
+            if (!val.verification_remarks?.trim())
+              ctx.addIssue({ code: "custom", path: ["verification_remarks"], message: "Remarks are mandatory for Partial Completed" });
+            if (!val.pending_work_details?.trim())
+              ctx.addIssue({ code: "custom", path: ["pending_work_details"], message: "Pending work details are mandatory" });
+          }
+          if (val.status === "additional_documents_required") {
+            if (!val.missing_documents?.trim())
+              ctx.addIssue({ code: "custom", path: ["missing_documents"], message: "Missing document details are mandatory" });
+            if (!val.verification_remarks?.trim())
+              ctx.addIssue({ code: "custom", path: ["verification_remarks"], message: "Remarks are mandatory" });
+          }
         })
         .parse(data),
   )

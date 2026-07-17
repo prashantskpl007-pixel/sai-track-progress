@@ -120,7 +120,9 @@ export const createCustomer = createServerFn({ method: "POST" })
         balance_amount: totals.balance,
         payment_method: data.paymentMethod ?? null,
         payment_date: data.paymentDate ?? null,
-        assigned_staff_id: data.assignedStaffId ?? null,
+        assigned_staff_id: data.assignedStaffId,
+        verification_partner_user_id: data.verificationPartnerUserId,
+        verification_partner_name: data.verificationPartnerName,
         notes: data.notes ?? null,
       })
       .select("*")

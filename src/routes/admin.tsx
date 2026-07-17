@@ -538,10 +538,11 @@ function AdminPanel() {
                 </DialogTrigger>
                 <CustomerFormDialog
                   staff={staff}
+                  partners={verificationPartners}
                   onSubmit={async (values) => {
                     try {
                       await createFn({ data: values });
-                      toast.success("Customer created");
+                      toast.success("Customer created & verification partner assigned");
                       setCreateOpen(false);
                       await load();
                     } catch (e: any) {

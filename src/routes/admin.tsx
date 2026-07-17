@@ -879,68 +879,237 @@ function AdminPanel() {
 function VerificationControlCenter({
   cases,
   customers,
+  staff,
   partners,
   onAssign,
 }: {
   cases: any[];
   customers: Customer[];
+  staff: Staff[];
   partners: any[];
   onAssign: (caseId: string, partner: any) => Promise<void>;
 }) {
+  const [fPartner, setFPartner] = useState<string>("all");
+  const [fStatus, setFStatus] = useState<string>("all");
+  const [fType, setFType] = useState<string>("all");
+  const [fStaff, setFStaff] = useState<string>("all");
+  const [fFrom, setFFrom] = useState<string>("");
+  const [fTo, setFTo] = useState<string>("");
+
   const customerById = useMemo(() => {
     const m = new Map<string, Customer>();
     customers.forEach((c) => m.set(c.id, c));
     return m;
   }, [customers]);
 
+  const filteredCases = useMemo(() => {
+    return cases.filter((v) => {
+      const cust = customerById.get(v.customer_id);
+      if (fPartner !== "all" && v.assigned_partner_user_id !== fPartner) return false;
+      if (fStatus !== "all" && v.status !== fStatus) return false;
+      if (fType !== "all" && cust?.agreement_type !== fType) return false;
+      if (fStaff !== "all" && cust?.assigned_staff_id !== fStaff) return false;
+      if (fFrom && cust && new Date(cust.registration_date) < new Date(fFrom)) return false;
+      if (fTo && cust && new Date(cust.registration_date) > new Date(fTo)) return false;
+      return true;
+    });
+  }, [cases, customerById, fPartner, fStatus, fType, fStaff, fFrom, fTo]);
+
   const stats = useMemo(() => {
-    const s = { total: cases.length, unassigned: 0, inProgress: 0, completed: 0, onHold: 0 };
-    cases.forEach((c) => {
-      if (!c.assigned_partner_user_id) s.unassigned += 1;
+    const s = { total: filteredCases.length, pending: 0, inProgress: 0, partial: 0, completed: 0, rejected: 0, addlDocs: 0 };
+    filteredCases.forEach((c) => {
+      if (c.status === "pending_assignment" || c.status === "assigned") s.pending += 1;
       if (c.status === "in_progress") s.inProgress += 1;
-      if (c.status === "completed" || c.status === "verified") s.completed += 1;
-      if (c.status === "on_hold") s.onHold += 1;
+      if (c.status === "partial_completed") s.partial += 1;
+      if (c.status === "completed" || c.status === "approved") s.completed += 1;
+      if (c.status === "rejected") s.rejected += 1;
+      if (c.status === "additional_documents_required") s.addlDocs += 1;
     });
     return s;
-  }, [cases]);
+  }, [filteredCases]);
 
-  const partnerPerf = useMemo(() => {
-    const map = new Map<string, { name: string; total: number; completed: number }>();
+  const partnerWorkload = useMemo(() => {
+    const map = new Map<string, {
+      name: string; total: number; pending: number; inProgress: number; partial: number;
+      completed: number; rejected: number; addlDocs: number; avgDays: number;
+    }>();
     partners.forEach((p) =>
-      map.set(p.user_id, { name: p.full_name, total: 0, completed: 0 }),
+      map.set(p.user_id, {
+        name: p.full_name, total: 0, pending: 0, inProgress: 0, partial: 0,
+        completed: 0, rejected: 0, addlDocs: 0, avgDays: 0,
+      }),
     );
+    const completionAges = new Map<string, number[]>();
     cases.forEach((c) => {
-      if (!c.assigned_partner_user_id) return;
-      const row = map.get(c.assigned_partner_user_id);
+      const row = c.assigned_partner_user_id ? map.get(c.assigned_partner_user_id) : null;
       if (!row) return;
       row.total += 1;
-      if (c.status === "completed" || c.status === "verified") row.completed += 1;
+      if (c.status === "pending_assignment" || c.status === "assigned") row.pending += 1;
+      if (c.status === "in_progress") row.inProgress += 1;
+      if (c.status === "partial_completed") row.partial += 1;
+      if (c.status === "completed" || c.status === "approved") row.completed += 1;
+      if (c.status === "rejected") row.rejected += 1;
+      if (c.status === "additional_documents_required") row.addlDocs += 1;
+      if (c.completion_date && c.assigned_at) {
+        const days = (new Date(c.completion_date).getTime() - new Date(c.assigned_at).getTime()) / 86400000;
+        const arr = completionAges.get(c.assigned_partner_user_id) ?? [];
+        arr.push(days);
+        completionAges.set(c.assigned_partner_user_id, arr);
+      }
     });
-    return Array.from(map.values());
+    completionAges.forEach((arr, uid) => {
+      const row = map.get(uid);
+      if (row && arr.length) row.avgDays = Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+    });
+    return Array.from(map.entries()).map(([uid, r]) => ({ uid, ...r }));
   }, [partners, cases]);
 
+  const workloadTone = (pending: number) => {
+    if (pending >= 20) return "bg-destructive/10 text-destructive border-destructive/40";
+    if (pending >= 10) return "bg-gold/15 text-gold border-gold/40";
+    return "bg-success/10 text-success border-success/40";
+  };
+
   const statusTone = (s: string) => {
-    if (s === "completed" || s === "verified") return "bg-success/15 text-success border-success/40";
+    if (s === "completed" || s === "approved") return "bg-success/15 text-success border-success/40";
     if (s === "in_progress") return "bg-primary/10 text-primary border-primary/40";
+    if (s === "partial_completed" || s === "additional_documents_required") return "bg-gold/15 text-gold border-gold/40";
     if (s === "on_hold") return "bg-gold/15 text-gold border-gold/40";
     if (s === "rejected") return "bg-destructive/10 text-destructive border-destructive/40";
     return "bg-muted text-muted-foreground border-border";
   };
 
+  const uniqueTypes = Array.from(new Set(customers.map((c) => c.agreement_type)));
+
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <StatCard icon={ShieldCheck} label="Total cases" value={String(stats.total)} />
-        <StatCard icon={AlertTriangle} label="Unassigned" value={String(stats.unassigned)} tone="gold" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+        <StatCard icon={ShieldCheck} label="Total" value={String(stats.total)} />
+        <StatCard icon={Clock} label="Pending" value={String(stats.pending)} tone="gold" />
         <StatCard icon={Clock} label="In progress" value={String(stats.inProgress)} />
+        <StatCard icon={AlertTriangle} label="Partial" value={String(stats.partial)} tone="gold" />
         <StatCard icon={CheckCircle2} label="Completed" value={String(stats.completed)} tone="success" />
-        <StatCard icon={AlertTriangle} label="On hold" value={String(stats.onHold)} tone="gold" />
+        <StatCard icon={AlertTriangle} label="Rejected / Docs" value={`${stats.rejected} / ${stats.addlDocs}`} />
       </div>
 
+      {/* Filters */}
+      <div className="grid gap-3 rounded-2xl border bg-card p-4 shadow-elegant sm:grid-cols-2 lg:grid-cols-6">
+        <div>
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Partner</Label>
+          <Select value={fPartner} onValueChange={setFPartner}>
+            <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All partners</SelectItem>
+              {partners.map((p) => (
+                <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Status</Label>
+          <Select value={fStatus} onValueChange={setFStatus}>
+            <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="pending_assignment">Pending</SelectItem>
+              <SelectItem value="assigned">Assigned</SelectItem>
+              <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="partial_completed">Partial Completed</SelectItem>
+              <SelectItem value="additional_documents_required">Additional Docs Required</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Agreement Type</Label>
+          <Select value={fType} onValueChange={setFType}>
+            <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              {uniqueTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Registration Staff</Label>
+          <Select value={fStaff} onValueChange={setFStaff}>
+            <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All staff</SelectItem>
+              {staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">From date</Label>
+          <Input type="date" className="mt-1" value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
+        </div>
+        <div>
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">To date</Label>
+          <Input type="date" className="mt-1" value={fTo} onChange={(e) => setFTo(e.target.value)} />
+        </div>
+      </div>
+
+      {/* Workload Distribution */}
+      <div className="rounded-2xl border bg-card p-6 shadow-elegant">
+        <h3 className="font-display font-semibold">Verification Workload Distribution</h3>
+        <p className="text-xs text-muted-foreground">
+          Color: <span className="text-success">Green</span> = Healthy · <span className="text-gold">Orange</span> = Medium · <span className="text-destructive">Red</span> = High Pending Load (20+)
+        </p>
+        {partnerWorkload.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">No verification partners yet.</p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="py-2">Partner</th>
+                  <th>Pending</th>
+                  <th>In Progress</th>
+                  <th>Partial</th>
+                  <th>Completed</th>
+                  <th>Rejected</th>
+                  <th>Addl Docs</th>
+                  <th>Avg Days</th>
+                  <th>Completion %</th>
+                  <th>Load</th>
+                </tr>
+              </thead>
+              <tbody>
+                {partnerWorkload.map((p) => {
+                  const rate = p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0;
+                  return (
+                    <tr key={p.uid} className="border-t">
+                      <td className="py-2 font-medium">{p.name}</td>
+                      <td>{p.pending}</td>
+                      <td>{p.inProgress}</td>
+                      <td>{p.partial}</td>
+                      <td>{p.completed}</td>
+                      <td>{p.rejected}</td>
+                      <td>{p.addlDocs}</td>
+                      <td>{p.avgDays}</td>
+                      <td>{rate}%</td>
+                      <td>
+                        <span className={`rounded border px-2 py-0.5 text-xs ${workloadTone(p.pending)}`}>
+                          {p.pending >= 20 ? "High" : p.pending >= 10 ? "Medium" : "Healthy"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Cases table */}
       <div className="overflow-hidden rounded-2xl border bg-card shadow-elegant">
         <div className="border-b p-4">
           <h3 className="font-display font-semibold">All verification cases</h3>
-          <p className="text-sm text-muted-foreground">Assign partners and track progress.</p>
+          <p className="text-sm text-muted-foreground">Reassign partners and track progress.</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -950,25 +1119,25 @@ function VerificationControlCenter({
                 <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Partner</th>
+                <th className="px-4 py-3">Reg. Staff</th>
                 <th className="px-4 py-3">Scheduled</th>
-                <th className="px-4 py-3">Assign</th>
+                <th className="px-4 py-3">Reassign</th>
               </tr>
             </thead>
             <tbody>
-              {cases.length === 0 ? (
+              {filteredCases.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-10 text-center text-muted-foreground">
-                    No verification cases yet.
+                  <td colSpan={7} className="py-10 text-center text-muted-foreground">
+                    No verification cases match filters.
                   </td>
                 </tr>
               ) : (
-                cases.map((v) => {
+                filteredCases.map((v) => {
                   const cust = customerById.get(v.customer_id);
+                  const regStaff = staff.find((s) => s.id === cust?.assigned_staff_id);
                   return (
                     <tr key={v.id} className="border-t hover:bg-muted/40">
-                      <td className="px-4 py-3 font-mono font-semibold">
-                        {cust?.application_number ?? "—"}
-                      </td>
+                      <td className="px-4 py-3 font-mono font-semibold">{cust?.application_number ?? "—"}</td>
                       <td className="px-4 py-3">{cust?.customer_name ?? "—"}</td>
                       <td className="px-4 py-3">
                         <span className={`rounded border px-2 py-0.5 text-xs ${statusTone(v.status)}`}>
@@ -976,14 +1145,11 @@ function VerificationControlCenter({
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs">
-                        {v.assigned_partner_name ?? (
-                          <span className="text-muted-foreground">Unassigned</span>
-                        )}
+                        {v.assigned_partner_name ?? <span className="text-muted-foreground">Unassigned</span>}
                       </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{regStaff?.full_name ?? "—"}</td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {v.scheduled_date
-                          ? new Date(v.scheduled_date).toLocaleDateString("en-IN")
-                          : "—"}
+                        {v.scheduled_date ? new Date(v.scheduled_date).toLocaleDateString("en-IN") : "—"}
                       </td>
                       <td className="px-4 py-3">
                         <Select
@@ -998,14 +1164,10 @@ function VerificationControlCenter({
                           </SelectTrigger>
                           <SelectContent>
                             {partners.length === 0 ? (
-                              <SelectItem value="none" disabled>
-                                No partners
-                              </SelectItem>
+                              <SelectItem value="none" disabled>No partners</SelectItem>
                             ) : (
                               partners.map((p) => (
-                                <SelectItem key={p.user_id} value={p.user_id}>
-                                  {p.full_name}
-                                </SelectItem>
+                                <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>
                               ))
                             )}
                           </SelectContent>
@@ -1019,39 +1181,10 @@ function VerificationControlCenter({
           </table>
         </div>
       </div>
-
-      <div className="rounded-2xl border bg-card p-6 shadow-elegant">
-        <h3 className="font-display font-semibold">Partner performance</h3>
-        {partnerPerf.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            No verification partners yet. Create one from the Verification dashboard.
-          </p>
-        ) : (
-          <table className="mt-3 w-full text-sm">
-            <thead className="text-left text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="py-2">Partner</th>
-                <th>Assigned</th>
-                <th>Completed</th>
-                <th>Completion %</th>
-              </tr>
-            </thead>
-            <tbody>
-              {partnerPerf.map((p) => (
-                <tr key={p.name} className="border-t">
-                  <td className="py-2">{p.name}</td>
-                  <td>{p.total}</td>
-                  <td>{p.completed}</td>
-                  <td>{p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
     </div>
   );
 }
+
 
 
 function StatCard({

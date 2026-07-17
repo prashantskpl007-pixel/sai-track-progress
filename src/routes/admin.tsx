@@ -1221,26 +1221,39 @@ function CustomerFormDialog({
       </div>
       <DialogFooter>
         <Button
-          disabled={busy || !values.customerName || !values.mobileNumber}
+          disabled={
+            busy ||
+            !values.customerName ||
+            !values.mobileNumber ||
+            !values.assignedStaffId ||
+            !values.verificationPartnerUserId
+          }
           onClick={async () => {
+            const partner = partners.find((p) => p.user_id === values.verificationPartnerUserId);
+            if (!partner) return toast.error("Select a verification partner");
             setBusy(true);
-            await onSubmit({
-              customerName: values.customerName,
-              mobileNumber: values.mobileNumber,
-              customerEmail: values.customerEmail || null,
-              agreementType: values.agreementType,
-              propertyAddress: values.propertyAddress || null,
-              paymentStatus: values.paymentStatus,
-              agreementCharges: Number(values.agreementCharges) || 0,
-              registrationCharges: Number(values.registrationCharges) || 0,
-              serviceCharges: Number(values.serviceCharges) || 0,
-              otherCharges: Number(values.otherCharges) || 0,
-              paymentReceived: Number(values.paymentReceived) || 0,
-              paymentMethod: values.paymentMethod || null,
-              assignedStaffId: values.assignedStaffId || null,
-              notes: values.notes || null,
-            });
-            setBusy(false);
+            try {
+              await onSubmit({
+                customerName: values.customerName,
+                mobileNumber: values.mobileNumber,
+                customerEmail: values.customerEmail || null,
+                agreementType: values.agreementType,
+                propertyAddress: values.propertyAddress || null,
+                paymentStatus: values.paymentStatus,
+                agreementCharges: Number(values.agreementCharges) || 0,
+                registrationCharges: Number(values.registrationCharges) || 0,
+                serviceCharges: Number(values.serviceCharges) || 0,
+                otherCharges: Number(values.otherCharges) || 0,
+                paymentReceived: Number(values.paymentReceived) || 0,
+                paymentMethod: values.paymentMethod || null,
+                assignedStaffId: values.assignedStaffId,
+                verificationPartnerUserId: partner.user_id,
+                verificationPartnerName: partner.full_name,
+                notes: values.notes || null,
+              });
+            } finally {
+              setBusy(false);
+            }
           }}
           className="bg-navy-gradient text-primary-foreground"
         >

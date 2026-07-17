@@ -112,6 +112,8 @@ export type Database = {
           total_amount: number | null
           updated_at: string
           user_id: string | null
+          verification_partner_name: string | null
+          verification_partner_user_id: string | null
         }
         Insert: {
           agreement_charges?: number | null
@@ -145,6 +147,8 @@ export type Database = {
           total_amount?: number | null
           updated_at?: string
           user_id?: string | null
+          verification_partner_name?: string | null
+          verification_partner_user_id?: string | null
         }
         Update: {
           agreement_charges?: number | null
@@ -178,6 +182,8 @@ export type Database = {
           total_amount?: number | null
           updated_at?: string
           user_id?: string | null
+          verification_partner_name?: string | null
+          verification_partner_user_id?: string | null
         }
         Relationships: [
           {
@@ -426,6 +432,9 @@ export type Database = {
           created_at: string
           customer_id: string
           id: string
+          missing_documents: string | null
+          pending_work_details: string | null
+          rejection_reason: string | null
           scheduled_date: string | null
           status: Database["public"]["Enums"]["verification_status"]
           updated_at: string
@@ -442,6 +451,9 @@ export type Database = {
           created_at?: string
           customer_id: string
           id?: string
+          missing_documents?: string | null
+          pending_work_details?: string | null
+          rejection_reason?: string | null
           scheduled_date?: string | null
           status?: Database["public"]["Enums"]["verification_status"]
           updated_at?: string
@@ -458,6 +470,9 @@ export type Database = {
           created_at?: string
           customer_id?: string
           id?: string
+          missing_documents?: string | null
+          pending_work_details?: string | null
+          rejection_reason?: string | null
           scheduled_date?: string | null
           status?: Database["public"]["Enums"]["verification_status"]
           updated_at?: string
@@ -610,6 +625,7 @@ export type Database = {
         | "approved"
         | "rejected"
         | "completed"
+        | "partial_completed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -786,6 +802,7 @@ export const Constants = {
         "approved",
         "rejected",
         "completed",
+        "partial_completed",
       ],
     },
   },

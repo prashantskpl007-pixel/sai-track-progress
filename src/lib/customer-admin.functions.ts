@@ -19,7 +19,11 @@ const CustomerInput = z.object({
   paymentReceived: z.number().optional().nullable(),
   paymentMethod: z.string().optional().nullable(),
   paymentDate: z.string().optional().nullable(),
-  assignedStaffId: z.string().uuid().optional().nullable(),
+  // Registration Staff — MANDATORY
+  assignedStaffId: z.string().uuid(),
+  // Verification Partner — MANDATORY (selected at registration)
+  verificationPartnerUserId: z.string().uuid(),
+  verificationPartnerName: z.string().min(1),
   notes: z.string().optional().nullable(),
 });
 
@@ -116,7 +120,9 @@ export const createCustomer = createServerFn({ method: "POST" })
         balance_amount: totals.balance,
         payment_method: data.paymentMethod ?? null,
         payment_date: data.paymentDate ?? null,
-        assigned_staff_id: data.assignedStaffId ?? null,
+        assigned_staff_id: data.assignedStaffId,
+        verification_partner_user_id: data.verificationPartnerUserId,
+        verification_partner_name: data.verificationPartnerName,
         notes: data.notes ?? null,
       })
       .select("*")

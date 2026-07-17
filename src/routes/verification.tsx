@@ -290,9 +290,23 @@ function CaseDialog({ row, onClose, onSaved, updateFn }: any) {
   const [time, setTime] = useState(row.verification_time ?? "");
   const [location, setLocation] = useState(row.verification_location ?? "");
   const [remarks, setRemarks] = useState(row.verification_remarks ?? "");
+  const [rejectionReason, setRejectionReason] = useState(row.rejection_reason ?? "");
+  const [pendingWork, setPendingWork] = useState(row.pending_work_details ?? "");
+  const [missingDocs, setMissingDocs] = useState(row.missing_documents ?? "");
   const [busy, setBusy] = useState(false);
 
+  const rejectedRequired = status === "rejected";
+  const partialRequired = status === "partial_completed";
+  const addlDocsRequired = status === "additional_documents_required";
+
   async function save() {
+    // Client-side pre-checks (server also enforces)
+    if (rejectedRequired && !rejectionReason.trim()) return toast.error("Rejection reason is mandatory");
+    if (partialRequired && (!remarks.trim() || !pendingWork.trim()))
+      return toast.error("Remarks and Pending work details are mandatory for Partial Completed");
+    if (addlDocsRequired && (!missingDocs.trim() || !remarks.trim()))
+      return toast.error("Missing documents and Remarks are mandatory");
+
     setBusy(true);
     try {
       await updateFn({
@@ -305,6 +319,9 @@ function CaseDialog({ row, onClose, onSaved, updateFn }: any) {
           verification_time: time || null,
           verification_location: location || null,
           verification_remarks: remarks || null,
+          rejection_reason: rejectionReason || null,
+          pending_work_details: pendingWork || null,
+          missing_documents: missingDocs || null,
         },
       });
       toast.success("Case updated");
@@ -366,9 +383,32 @@ function CaseDialog({ row, onClose, onSaved, updateFn }: any) {
         </div>
 
         <div>
-          <Label className="text-xs">Verification Remarks</Label>
+          <Label className="text-xs">
+            Verification Remarks{(partialRequired || addlDocsRequired) && <span className="text-destructive"> *</span>}
+          </Label>
           <Textarea className="mt-1" rows={3} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
         </div>
+
+        {rejectedRequired && (
+          <div>
+            <Label className="text-xs">Rejection Reason <span className="text-destructive">*</span></Label>
+            <Textarea className="mt-1" rows={3} value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} />
+          </div>
+        )}
+
+        {partialRequired && (
+          <div>
+            <Label className="text-xs">Pending Work Details <span className="text-destructive">*</span></Label>
+            <Textarea className="mt-1" rows={3} value={pendingWork} onChange={(e) => setPendingWork(e.target.value)} />
+          </div>
+        )}
+
+        {addlDocsRequired && (
+          <div>
+            <Label className="text-xs">Missing Document Details <span className="text-destructive">*</span></Label>
+            <Textarea className="mt-1" rows={3} value={missingDocs} onChange={(e) => setMissingDocs(e.target.value)} />
+          </div>
+        )}
 
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
@@ -379,12 +419,12 @@ function CaseDialog({ row, onClose, onSaved, updateFn }: any) {
 
         <div className="rounded-lg border bg-card p-3">
           <h4 className="mb-2 font-display font-semibold">Verification Documents</h4>
-          <p className="mb-3 text-xs text-muted-foreground">Optional — you can complete verification without uploading any document.</p>
+          <p className="mb-3 text-xs text-muted-foreground">NOC, Police Verification, Site Visit Photos, Supporting docs.</p>
           <VerificationDocuments caseId={row.id} applicationNumber={row.customer?.application_number ?? "case"} />
         </div>
 
         <div className="rounded-lg border bg-card p-3">
-          <h4 className="mb-2 font-display font-semibold">Customer KYC Documents (view only)</h4>
+          <h4 className="mb-2 font-display font-semibold">Customer KYC Documents (view / download)</h4>
           <KycPanel customerId={row.customer_id} applicationNumber={row.customer?.application_number ?? "case"} readOnly />
         </div>
       </div>

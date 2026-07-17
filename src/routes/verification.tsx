@@ -106,8 +106,9 @@ function VerificationDashboard() {
       .from("verification_cases")
       .select(`
         id, customer_id, status, scheduled_date, actual_verification_date,
-        completion_date, verification_time, verification_location, verification_remarks, assigned_at,
-        customer:customers(application_number, customer_name, mobile_number, property_address, agreement_type)
+        completion_date, verification_time, verification_location, verification_remarks,
+        rejection_reason, pending_work_details, missing_documents, assigned_at,
+        customer:customers(application_number, customer_name, mobile_number, property_address, agreement_type, registration_date)
       `)
       .order("assigned_at", { ascending: false, nullsFirst: false });
     if (error) toast.error(error.message);

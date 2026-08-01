@@ -144,9 +144,19 @@ export const createCustomer = createServerFn({ method: "POST" })
         payment_method: data.paymentMethod ?? null,
         payment_date: data.paymentDate ?? null,
         assigned_staff_id: data.assignedStaffId,
-        verification_partner_user_id: data.verificationPartnerUserId,
-        verification_partner_name: data.verificationPartnerName,
+        verification_partner_user_id: data.verificationPartnerUserId ?? null,
+        verification_partner_name: data.verificationPartnerName ?? null,
+        token_number: token,
+        source_agent: data.sourceAgent ?? null,
+        work_type: data.workType ?? null,
+        registration_handling_type: data.registrationHandlingType ?? null,
+        verification_noc_status: data.verificationNocStatus ?? null,
+        pending_item: data.pendingItem ?? null,
+        appointment_time: data.appointmentTime ?? null,
+        ...(data.registrationDate ? { registration_date: data.registrationDate } : {}),
+        ...(data.currentStatus ? { current_status: data.currentStatus as any } : {}),
         notes: data.notes ?? null,
+
       })
       .select("*")
       .single();

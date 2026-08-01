@@ -455,7 +455,11 @@ function AdminPanel() {
                   partners={verificationPartners}
                   onSubmit={async (values) => {
                     try {
-                      await createFn({ data: values });
+                      const { remarks, ...payload } = values;
+                      const row: any = await createFn({ data: payload });
+                      if (remarks && row?.id) {
+                        await addRemarkFn({ data: { customerId: row.id, message: remarks } });
+                      }
                       toast.success("Registration saved");
                       setCreateOpen(false);
                       await load();
@@ -463,6 +467,7 @@ function AdminPanel() {
                       toast.error(e.message);
                     }
                   }}
+
                 />
               </Dialog>
             </div>

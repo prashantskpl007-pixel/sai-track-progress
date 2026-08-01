@@ -89,12 +89,21 @@ export const createCustomer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: z.infer<typeof CustomerInput>) => CustomerInput.parse(data))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await assertAdminOrStaff(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const token = data.tokenNumber.trim();
+    const { data: dupe } = await supabaseAdmin
+      .from("customers")
+      .select("id, application_number")
+      .eq("token_number", token)
+      .maybeSingle();
+    if (dupe) throw new Error(`Token number "${token}" already exists — token numbers must be unique.`);
 
     const applicationNumber = await nextApplicationNumber(context.supabase);
     const email = customerEmail(applicationNumber);
     const password = data.mobileNumber.replace(/\s+/g, "");
+
 
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
       email,

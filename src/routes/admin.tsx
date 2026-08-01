@@ -83,6 +83,8 @@ import {
 } from "@/lib/staff-admin.functions";
 import { AGREEMENT_TYPES, STATUS_STEPS, statusLabel, type RegistrationStatus } from "@/lib/status";
 import { KycPanel } from "@/components/KycPanel";
+import { WorkflowDashboard } from "@/components/WorkflowDashboard";
+
 import {
   listVerificationPartners,
   assignVerificationCase,

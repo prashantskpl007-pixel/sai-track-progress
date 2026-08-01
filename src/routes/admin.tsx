@@ -186,6 +186,8 @@ function AdminPanel() {
   const resetPwdFn = useServerFn(resetStaffPassword);
   const resolveAlertFn = useServerFn(resolveAlert);
   const addNoteFn = useServerFn(addInternalNote);
+  const addRemarkFn = useServerFn(addCustomerRemark);
+
   const deleteNoteFn = useServerFn(deleteInternalNote);
   const listPartnersFn = useServerFn(listVerificationPartners);
   const assignCaseFn = useServerFn(assignVerificationCase);

@@ -405,8 +405,9 @@ function AdminPanel() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8">
-        <Tabs defaultValue="overview" className="w-full">
+        <Tabs defaultValue="workflow" className="w-full">
           <TabsList className="mb-6 flex w-full flex-wrap justify-start gap-1 bg-secondary p-1">
+            <TabsTrigger value="workflow"><StickyNote className="mr-1.5 h-4 w-4" />Workflow</TabsTrigger>
             <TabsTrigger value="overview"><BarChart3 className="mr-1.5 h-4 w-4" />Overview</TabsTrigger>
             <TabsTrigger value="customers"><Users className="mr-1.5 h-4 w-4" />Customers</TabsTrigger>
             <TabsTrigger value="staff"><UserCog className="mr-1.5 h-4 w-4" />Staff</TabsTrigger>
@@ -422,7 +423,42 @@ function AdminPanel() {
             <TabsTrigger value="analytics"><BarChart3 className="mr-1.5 h-4 w-4" />Analytics</TabsTrigger>
           </TabsList>
 
+          {/* ===== WORKFLOW DASHBOARD (primary working screen) ===== */}
+          <TabsContent value="workflow" className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4 shadow-elegant">
+              <div>
+                <h2 className="font-display text-lg font-semibold">Workflow Dashboard</h2>
+                <p className="text-sm text-muted-foreground">
+                  Every field below is editable — click a cell to change it. Balance = Fees − Received.
+                </p>
+              </div>
+              <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+                <DialogTrigger asChild>
+                  <Button size="lg" className="bg-gold-gradient text-gold-foreground shadow-gold">
+                    <Plus className="mr-2 h-4 w-4" /> New Registration
+                  </Button>
+                </DialogTrigger>
+                <CustomerFormDialog
+                  staff={staff}
+                  partners={verificationPartners}
+                  onSubmit={async (values) => {
+                    try {
+                      await createFn({ data: values });
+                      toast.success("Registration saved");
+                      setCreateOpen(false);
+                      await load();
+                    } catch (e: any) {
+                      toast.error(e.message);
+                    }
+                  }}
+                />
+              </Dialog>
+            </div>
+            <WorkflowDashboard customers={customers as any} staff={staff} onChanged={load} />
+          </TabsContent>
+
           {/* ===== OVERVIEW ===== */}
+
           <TabsContent value="overview" className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard icon={Users} label="Total registrations" value={String(stats.total)} />

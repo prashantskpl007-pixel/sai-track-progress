@@ -81,7 +81,17 @@ import {
   deleteStaff,
   resetStaffPassword,
 } from "@/lib/staff-admin.functions";
-import { AGREEMENT_TYPES, STATUS_STEPS, statusLabel, type RegistrationStatus } from "@/lib/status";
+import {
+  AGREEMENT_TYPES,
+  STATUS_STEPS,
+  statusLabel,
+  WORK_TYPES,
+  REGISTRATION_HANDLING_TYPES,
+  PENDING_OPTIONS,
+  NOC_OPTIONS,
+  type RegistrationStatus,
+} from "@/lib/status";
+
 import { KycPanel } from "@/components/KycPanel";
 import { WorkflowDashboard } from "@/components/WorkflowDashboard";
 

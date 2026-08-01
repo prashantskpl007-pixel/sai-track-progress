@@ -399,3 +399,33 @@ export const seedDemoCustomers = createServerFn({ method: "POST" })
     }
     return { seeded: 3 };
   });
+
+/** ---- Remarks timeline (append-only) ---- */
+export const addCustomerRemark = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { customerId: string; message: string }) =>
+    z.object({ customerId: z.string().uuid(), message: z.string().trim().min(1).max(2000) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    let authorName = "Staff";
+    const { data: st } = await context.supabase
+      .from("staff")
+      .select("full_name")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (st?.full_name) authorName = st.full_name;
+    else if ((context.claims as any)?.email) authorName = (context.claims as any).email;
+
+    const { data: row, error } = await context.supabase
+      .from("customer_remarks")
+      .insert({
+        customer_id: data.customerId,
+        message: data.message.trim(),
+        author_user_id: context.userId,
+        author_name: authorName,
+      })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
+  });

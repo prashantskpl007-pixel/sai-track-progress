@@ -9,6 +9,7 @@ const CustomerInput = z.object({
   propertyAddress: z.string().optional().nullable(),
   customerEmail: z.string().email().optional().nullable(),
   appointmentDate: z.string().optional().nullable(),
+  appointmentTime: z.string().optional().nullable(),
   appointmentLocation: z.string().optional().nullable(),
   paymentStatus: z.enum(["pending", "partial", "paid"]).default("pending"),
   paymentAmount: z.number().optional().nullable(),
@@ -19,13 +20,24 @@ const CustomerInput = z.object({
   paymentReceived: z.number().optional().nullable(),
   paymentMethod: z.string().optional().nullable(),
   paymentDate: z.string().optional().nullable(),
+  // Workflow fields
+  registrationDate: z.string().optional().nullable(),
+  tokenNumber: z.string().min(1),
+  sourceAgent: z.string().optional().nullable(),
+  workType: z.string().optional().nullable(),
+  registrationHandlingType: z.string().optional().nullable(),
+  verificationNocStatus: z.string().optional().nullable(),
+  pendingItem: z.string().optional().nullable(),
+  currentStatus: z.string().optional().nullable(),
+  totalFees: z.number().optional().nullable(),
   // Registration Staff — MANDATORY
   assignedStaffId: z.string().uuid(),
-  // Verification Partner — MANDATORY (selected at registration)
-  verificationPartnerUserId: z.string().uuid(),
-  verificationPartnerName: z.string().min(1),
+  // Verification Partner — optional
+  verificationPartnerUserId: z.string().uuid().optional().nullable(),
+  verificationPartnerName: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
+
 
 async function assertAdminOrStaff(ctx: { supabase: any; userId: string }) {
   const { data: a } = await ctx.supabase.rpc("has_role", { _user_id: ctx.userId, _role: "admin" });
@@ -66,21 +78,32 @@ function computeTotals(v: z.infer<typeof CustomerInput>) {
   const rc = v.registrationCharges ?? 0;
   const sc = v.serviceCharges ?? 0;
   const oc = v.otherCharges ?? 0;
-  const total = ac + rc + sc + oc;
+  const sum = ac + rc + sc + oc;
+  const total = v.totalFees != null && v.totalFees > 0 ? v.totalFees : sum;
   const received = v.paymentReceived ?? 0;
   return { total, balance: Math.max(0, total - received) };
 }
+
 
 export const createCustomer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: z.infer<typeof CustomerInput>) => CustomerInput.parse(data))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await assertAdminOrStaff(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const token = data.tokenNumber.trim();
+    const { data: dupe } = await supabaseAdmin
+      .from("customers")
+      .select("id, application_number")
+      .eq("token_number", token)
+      .maybeSingle();
+    if (dupe) throw new Error(`Token number "${token}" already exists — token numbers must be unique.`);
 
     const applicationNumber = await nextApplicationNumber(context.supabase);
     const email = customerEmail(applicationNumber);
     const password = data.mobileNumber.replace(/\s+/g, "");
+
 
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -121,9 +144,19 @@ export const createCustomer = createServerFn({ method: "POST" })
         payment_method: data.paymentMethod ?? null,
         payment_date: data.paymentDate ?? null,
         assigned_staff_id: data.assignedStaffId,
-        verification_partner_user_id: data.verificationPartnerUserId,
-        verification_partner_name: data.verificationPartnerName,
+        verification_partner_user_id: data.verificationPartnerUserId ?? null,
+        verification_partner_name: data.verificationPartnerName ?? null,
+        token_number: token,
+        source_agent: data.sourceAgent ?? null,
+        work_type: data.workType ?? null,
+        registration_handling_type: data.registrationHandlingType ?? null,
+        verification_noc_status: data.verificationNocStatus ?? null,
+        pending_item: data.pendingItem ?? null,
+        appointment_time: data.appointmentTime ?? null,
+        ...(data.registrationDate ? { registration_date: data.registrationDate } : {}),
+        ...(data.currentStatus ? { current_status: data.currentStatus as any } : {}),
         notes: data.notes ?? null,
+
       })
       .select("*")
       .single();
@@ -173,7 +206,16 @@ const UpdateInput = z.object({
     assigned_staff_id: z.string().uuid().nullable().optional(),
     agreement_pdf_path: z.string().nullable().optional(),
     last_contacted_at: z.string().nullable().optional(),
+    registration_date: z.string().optional(),
+    token_number: z.string().nullable().optional(),
+    source_agent: z.string().nullable().optional(),
+    work_type: z.string().nullable().optional(),
+    registration_handling_type: z.string().nullable().optional(),
+    verification_noc_status: z.string().nullable().optional(),
+    pending_item: z.string().nullable().optional(),
+    appointment_time: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
+
   }),
 });
 
@@ -356,4 +398,34 @@ export const seedDemoCustomers = createServerFn({ method: "POST" })
       });
     }
     return { seeded: 3 };
+  });
+
+/** ---- Remarks timeline (append-only) ---- */
+export const addCustomerRemark = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { customerId: string; message: string }) =>
+    z.object({ customerId: z.string().uuid(), message: z.string().trim().min(1).max(2000) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    let authorName = "Staff";
+    const { data: st } = await context.supabase
+      .from("staff")
+      .select("full_name")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (st?.full_name) authorName = st.full_name;
+    else if ((context.claims as any)?.email) authorName = (context.claims as any).email;
+
+    const { data: row, error } = await context.supabase
+      .from("customer_remarks")
+      .insert({
+        customer_id: data.customerId,
+        message: data.message.trim(),
+        author_user_id: context.userId,
+        author_name: authorName,
+      })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
   });

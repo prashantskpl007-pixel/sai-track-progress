@@ -137,3 +137,40 @@ export const KYC_ALLOWED_MIME = [
 ];
 
 export const KYC_MAX_BYTES = 20 * 1024 * 1024; // 20 MB
+
+// ---- Workflow Management System options ----
+
+export const WORK_TYPES: string[] = [
+  "Rent Agreement",
+  "Sale Deed",
+  "Gift Deed",
+  "Power of Attorney",
+  "Affidavit",
+  "MOU / Agreement",
+  "Notary",
+  "Other",
+];
+
+export const REGISTRATION_HANDLING_TYPES: string[] = [
+  "Office Registration",
+  "Doorstep (Home Visit)",
+  "Sub-Registrar Office",
+  "Online / e-Registration",
+];
+
+export const PENDING_OPTIONS: string[] = [
+  "No Pending",
+  "Fees Pending",
+  "NOC Pending",
+  "Documents Pending",
+  "Biometric Pending",
+  "Overdue",
+];
+
+export const NOC_OPTIONS: string[] = [
+  "Not Required",
+  "NOC Pending",
+  "In Progress",
+  "Completed",
+  "Rejected",
+];

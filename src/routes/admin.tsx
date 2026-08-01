@@ -74,6 +74,8 @@ import {
   addInternalNote,
   deleteInternalNote,
   resolveAlert,
+  addCustomerRemark,
+
 } from "@/lib/customer-admin.functions";
 import {
   createStaff,

@@ -78,10 +78,12 @@ function computeTotals(v: z.infer<typeof CustomerInput>) {
   const rc = v.registrationCharges ?? 0;
   const sc = v.serviceCharges ?? 0;
   const oc = v.otherCharges ?? 0;
-  const total = ac + rc + sc + oc;
+  const sum = ac + rc + sc + oc;
+  const total = v.totalFees != null && v.totalFees > 0 ? v.totalFees : sum;
   const received = v.paymentReceived ?? 0;
   return { total, balance: Math.max(0, total - received) };
 }
+
 
 export const createCustomer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

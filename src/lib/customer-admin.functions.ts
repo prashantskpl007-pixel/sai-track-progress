@@ -206,7 +206,7 @@ const UpdateInput = z.object({
     assigned_staff_id: z.string().uuid().nullable().optional(),
     agreement_pdf_path: z.string().nullable().optional(),
     last_contacted_at: z.string().nullable().optional(),
-    registration_date: z.string().nullable().optional(),
+    registration_date: z.string().optional(),
     token_number: z.string().nullable().optional(),
     source_agent: z.string().nullable().optional(),
     work_type: z.string().nullable().optional(),

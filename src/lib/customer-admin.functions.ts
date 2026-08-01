@@ -9,6 +9,7 @@ const CustomerInput = z.object({
   propertyAddress: z.string().optional().nullable(),
   customerEmail: z.string().email().optional().nullable(),
   appointmentDate: z.string().optional().nullable(),
+  appointmentTime: z.string().optional().nullable(),
   appointmentLocation: z.string().optional().nullable(),
   paymentStatus: z.enum(["pending", "partial", "paid"]).default("pending"),
   paymentAmount: z.number().optional().nullable(),
@@ -19,13 +20,24 @@ const CustomerInput = z.object({
   paymentReceived: z.number().optional().nullable(),
   paymentMethod: z.string().optional().nullable(),
   paymentDate: z.string().optional().nullable(),
+  // Workflow fields
+  registrationDate: z.string().optional().nullable(),
+  tokenNumber: z.string().min(1),
+  sourceAgent: z.string().optional().nullable(),
+  workType: z.string().optional().nullable(),
+  registrationHandlingType: z.string().optional().nullable(),
+  verificationNocStatus: z.string().optional().nullable(),
+  pendingItem: z.string().optional().nullable(),
+  currentStatus: z.string().optional().nullable(),
+  totalFees: z.number().optional().nullable(),
   // Registration Staff — MANDATORY
   assignedStaffId: z.string().uuid(),
-  // Verification Partner — MANDATORY (selected at registration)
-  verificationPartnerUserId: z.string().uuid(),
-  verificationPartnerName: z.string().min(1),
+  // Verification Partner — optional
+  verificationPartnerUserId: z.string().uuid().optional().nullable(),
+  verificationPartnerName: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
+
 
 async function assertAdminOrStaff(ctx: { supabase: any; userId: string }) {
   const { data: a } = await ctx.supabase.rpc("has_role", { _user_id: ctx.userId, _role: "admin" });

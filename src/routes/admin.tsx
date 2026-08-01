@@ -1277,52 +1277,74 @@ function CustomerFormDialog({
   partners: any[];
 }) {
   const [values, setValues] = useState({
+    registrationDate: new Date().toISOString().slice(0, 10),
+    tokenNumber: "",
+    sourceAgent: "",
     customerName: "",
     mobileNumber: "",
     customerEmail: "",
-    agreementType: AGREEMENT_TYPES[0],
     propertyAddress: "",
-    paymentStatus: "pending" as "pending" | "partial" | "paid",
-    agreementCharges: "",
-    registrationCharges: "",
-    serviceCharges: "",
-    otherCharges: "",
-    paymentReceived: "",
-    paymentMethod: "",
+    workType: WORK_TYPES[0],
+    registrationHandlingType: REGISTRATION_HANDLING_TYPES[0],
     assignedStaffId: "",
     verificationPartnerUserId: "",
-    notes: "",
+    verificationNocStatus: NOC_OPTIONS[0],
+    totalFees: "",
+    paymentReceived: "",
+    pendingItem: PENDING_OPTIONS[0],
+    currentStatus: "application_created" as string,
+    appointmentDate: "",
+    appointmentTime: "",
+    remarks: "",
   });
   const [busy, setBusy] = useState(false);
-  const total =
-    (Number(values.agreementCharges) || 0) +
-    (Number(values.registrationCharges) || 0) +
-    (Number(values.serviceCharges) || 0) +
-    (Number(values.otherCharges) || 0);
+  const fees = Number(values.totalFees) || 0;
+  const received = Number(values.paymentReceived) || 0;
+  const balance = Math.max(0, fees - received);
 
   return (
-    <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-      <DialogHeader><DialogTitle>New Customer Registration</DialogTitle></DialogHeader>
+    <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+      <DialogHeader><DialogTitle>New Registration</DialogTitle></DialogHeader>
       <div className="grid gap-3">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="Date">
+            <Input type="date" value={values.registrationDate} onChange={(e) => setValues({ ...values, registrationDate: e.target.value })} />
+          </Field>
+          <Field label="Token Number (unique)">
+            <Input value={values.tokenNumber} onChange={(e) => setValues({ ...values, tokenNumber: e.target.value })} placeholder="e.g. TKN-1042" />
+          </Field>
+          <Field label="Source (Agent)">
+            <Input value={values.sourceAgent} onChange={(e) => setValues({ ...values, sourceAgent: e.target.value })} placeholder="Agent / walk-in" />
+          </Field>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
           <Field label="Customer Name">
             <Input value={values.customerName} onChange={(e) => setValues({ ...values, customerName: e.target.value })} />
           </Field>
           <Field label="Mobile Number">
             <Input inputMode="numeric" value={values.mobileNumber} onChange={(e) => setValues({ ...values, mobileNumber: e.target.value })} />
           </Field>
+          <Field label="Email (optional)">
+            <Input type="email" value={values.customerEmail} onChange={(e) => setValues({ ...values, customerEmail: e.target.value })} />
+          </Field>
         </div>
-        <Field label="Email (optional)">
-          <Input type="email" value={values.customerEmail} onChange={(e) => setValues({ ...values, customerEmail: e.target.value })} />
+        <Field label="Property Address">
+          <Textarea rows={2} value={values.propertyAddress} onChange={(e) => setValues({ ...values, propertyAddress: e.target.value })} />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Agreement Type">
-            <Select value={values.agreementType} onValueChange={(v) => setValues({ ...values, agreementType: v })}>
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="Work Type">
+            <Select value={values.workType} onValueChange={(v) => setValues({ ...values, workType: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{AGREEMENT_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              <SelectContent>{WORK_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
-          <Field label="Registration Staff (required)">
+          <Field label="Registration Handling Type">
+            <Select value={values.registrationHandlingType} onValueChange={(v) => setValues({ ...values, registrationHandlingType: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{REGISTRATION_HANDLING_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Assigned Staff (required)">
             <Select value={values.assignedStaffId} onValueChange={(v) => setValues({ ...values, assignedStaffId: v })}>
               <SelectTrigger><SelectValue placeholder="Select staff..." /></SelectTrigger>
               <SelectContent>
@@ -1331,64 +1353,64 @@ function CustomerFormDialog({
             </Select>
           </Field>
         </div>
-        <Field label="Verification Partner (required)">
-          <Select
-            value={values.verificationPartnerUserId}
-            onValueChange={(v) => setValues({ ...values, verificationPartnerUserId: v })}
-          >
-            <SelectTrigger><SelectValue placeholder="Select verification partner..." /></SelectTrigger>
-            <SelectContent>
-              {partners.length === 0 ? (
-                <SelectItem value="none" disabled>No verification partners — add one first</SelectItem>
-              ) : (
-                partners.map((p) => (
-                  <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Property Address">
-          <Textarea rows={2} value={values.propertyAddress} onChange={(e) => setValues({ ...values, propertyAddress: e.target.value })} />
-        </Field>
-        <div className="rounded-lg border bg-secondary/30 p-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Revenue breakdown (₹)</p>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Agreement charges">
-              <Input type="number" value={values.agreementCharges} onChange={(e) => setValues({ ...values, agreementCharges: e.target.value })} />
-            </Field>
-            <Field label="Registration charges">
-              <Input type="number" value={values.registrationCharges} onChange={(e) => setValues({ ...values, registrationCharges: e.target.value })} />
-            </Field>
-            <Field label="Service charges">
-              <Input type="number" value={values.serviceCharges} onChange={(e) => setValues({ ...values, serviceCharges: e.target.value })} />
-            </Field>
-            <Field label="Other charges">
-              <Input type="number" value={values.otherCharges} onChange={(e) => setValues({ ...values, otherCharges: e.target.value })} />
-            </Field>
-          </div>
-          <p className="mt-2 text-sm font-semibold">Total: {INR(total)}</p>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Payment Status">
-            <Select value={values.paymentStatus} onValueChange={(v: any) => setValues({ ...values, paymentStatus: v })}>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Verification / NOC Status">
+            <Select value={values.verificationNocStatus} onValueChange={(v) => setValues({ ...values, verificationNocStatus: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{NOC_OPTIONS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Verification Partner (optional)">
+            <Select
+              value={values.verificationPartnerUserId}
+              onValueChange={(v) => setValues({ ...values, verificationPartnerUserId: v })}
+            >
+              <SelectTrigger><SelectValue placeholder="Select partner..." /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="partial">Partial</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
+                {partners.length === 0 ? (
+                  <SelectItem value="none" disabled>No verification partners yet</SelectItem>
+                ) : (
+                  partners.map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>)
+                )}
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Received (₹)">
+        </div>
+        <div className="grid grid-cols-3 gap-3 rounded-lg border bg-secondary/30 p-3">
+          <Field label="Total Fees (₹)">
+            <Input type="number" value={values.totalFees} onChange={(e) => setValues({ ...values, totalFees: e.target.value })} />
+          </Field>
+          <Field label="Amount Received (₹)">
             <Input type="number" value={values.paymentReceived} onChange={(e) => setValues({ ...values, paymentReceived: e.target.value })} />
           </Field>
-          <Field label="Method">
-            <Input placeholder="Cash / UPI / Cheque" value={values.paymentMethod} onChange={(e) => setValues({ ...values, paymentMethod: e.target.value })} />
+          <Field label="Balance (auto)">
+            <Input readOnly value={INR(balance)} className="font-semibold" />
           </Field>
         </div>
-        <Field label="Notes">
-          <Textarea rows={2} value={values.notes} onChange={(e) => setValues({ ...values, notes: e.target.value })} />
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Pending">
+            <Select value={values.pendingItem} onValueChange={(v) => setValues({ ...values, pendingItem: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{PENDING_OPTIONS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+          <Field label="Current Status">
+            <Select value={values.currentStatus} onValueChange={(v) => setValues({ ...values, currentStatus: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{STATUS_STEPS.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Appointment Date">
+            <Input type="date" value={values.appointmentDate} onChange={(e) => setValues({ ...values, appointmentDate: e.target.value })} />
+          </Field>
+          <Field label="Appointment Time">
+            <Input type="time" value={values.appointmentTime} onChange={(e) => setValues({ ...values, appointmentTime: e.target.value })} />
+          </Field>
+        </div>
+        <Field label="Remarks (first message in the timeline)">
+          <Textarea rows={2} value={values.remarks} onChange={(e) => setValues({ ...values, remarks: e.target.value })} />
         </Field>
       </div>
       <DialogFooter>
@@ -1397,31 +1419,42 @@ function CustomerFormDialog({
             busy ||
             !values.customerName ||
             !values.mobileNumber ||
-            !values.assignedStaffId ||
-            !values.verificationPartnerUserId
+            !values.tokenNumber.trim() ||
+            !values.assignedStaffId
           }
           onClick={async () => {
             const partner = partners.find((p) => p.user_id === values.verificationPartnerUserId);
-            if (!partner) return toast.error("Select a verification partner");
             setBusy(true);
             try {
               await onSubmit({
+                registrationDate: values.registrationDate || null,
+                tokenNumber: values.tokenNumber.trim(),
+                sourceAgent: values.sourceAgent || null,
                 customerName: values.customerName,
                 mobileNumber: values.mobileNumber,
                 customerEmail: values.customerEmail || null,
-                agreementType: values.agreementType,
                 propertyAddress: values.propertyAddress || null,
-                paymentStatus: values.paymentStatus,
-                agreementCharges: Number(values.agreementCharges) || 0,
-                registrationCharges: Number(values.registrationCharges) || 0,
-                serviceCharges: Number(values.serviceCharges) || 0,
-                otherCharges: Number(values.otherCharges) || 0,
-                paymentReceived: Number(values.paymentReceived) || 0,
-                paymentMethod: values.paymentMethod || null,
+                agreementType: values.workType,
+                workType: values.workType,
+                registrationHandlingType: values.registrationHandlingType,
                 assignedStaffId: values.assignedStaffId,
-                verificationPartnerUserId: partner.user_id,
-                verificationPartnerName: partner.full_name,
-                notes: values.notes || null,
+                verificationPartnerUserId: partner?.user_id ?? null,
+                verificationPartnerName: partner?.full_name ?? null,
+                verificationNocStatus: values.verificationNocStatus,
+                totalFees: Number(values.totalFees) || 0,
+                paymentReceived: Number(values.paymentReceived) || 0,
+                paymentStatus:
+                  (Number(values.paymentReceived) || 0) <= 0
+                    ? "pending"
+                    : (Number(values.paymentReceived) || 0) >= (Number(values.totalFees) || 0)
+                      ? "paid"
+                      : "partial",
+                pendingItem: values.pendingItem,
+                currentStatus: values.currentStatus,
+                appointmentDate: values.appointmentDate ? new Date(`${values.appointmentDate}T${values.appointmentTime || "00:00"}`).toISOString() : null,
+                appointmentTime: values.appointmentTime || null,
+                remarks: values.remarks || null,
+                notes: values.remarks || null,
               });
             } finally {
               setBusy(false);
@@ -1429,12 +1462,13 @@ function CustomerFormDialog({
           }}
           className="bg-navy-gradient text-primary-foreground"
         >
-          {busy ? "Creating..." : "Create registration"}
+          {busy ? "Saving..." : "Save registration"}
         </Button>
       </DialogFooter>
     </DialogContent>
   );
 }
+
 
 function EditCustomerDialog({
   customer,

@@ -79,6 +79,41 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_remarks: {
+        Row: {
+          author_name: string
+          author_user_id: string | null
+          created_at: string
+          customer_id: string
+          id: string
+          message: string
+        }
+        Insert: {
+          author_name?: string
+          author_user_id?: string | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          message: string
+        }
+        Update: {
+          author_name?: string
+          author_user_id?: string | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          message?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_remarks_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           agreement_charges: number | null
@@ -88,6 +123,7 @@ export type Database = {
           application_number: string
           appointment_date: string | null
           appointment_location: string | null
+          appointment_time: string | null
           assigned_staff_id: string | null
           balance_amount: number | null
           created_at: string
@@ -104,16 +140,22 @@ export type Database = {
           payment_method: string | null
           payment_received: number | null
           payment_status: Database["public"]["Enums"]["payment_status"]
+          pending_item: string | null
           property_address: string | null
           registration_charges: number | null
           registration_date: string
+          registration_handling_type: string | null
           service_charges: number | null
+          source_agent: string | null
           support_number: string | null
+          token_number: string | null
           total_amount: number | null
           updated_at: string
           user_id: string | null
+          verification_noc_status: string | null
           verification_partner_name: string | null
           verification_partner_user_id: string | null
+          work_type: string | null
         }
         Insert: {
           agreement_charges?: number | null
@@ -123,6 +165,7 @@ export type Database = {
           application_number: string
           appointment_date?: string | null
           appointment_location?: string | null
+          appointment_time?: string | null
           assigned_staff_id?: string | null
           balance_amount?: number | null
           created_at?: string
@@ -139,16 +182,22 @@ export type Database = {
           payment_method?: string | null
           payment_received?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          pending_item?: string | null
           property_address?: string | null
           registration_charges?: number | null
           registration_date?: string
+          registration_handling_type?: string | null
           service_charges?: number | null
+          source_agent?: string | null
           support_number?: string | null
+          token_number?: string | null
           total_amount?: number | null
           updated_at?: string
           user_id?: string | null
+          verification_noc_status?: string | null
           verification_partner_name?: string | null
           verification_partner_user_id?: string | null
+          work_type?: string | null
         }
         Update: {
           agreement_charges?: number | null
@@ -158,6 +207,7 @@ export type Database = {
           application_number?: string
           appointment_date?: string | null
           appointment_location?: string | null
+          appointment_time?: string | null
           assigned_staff_id?: string | null
           balance_amount?: number | null
           created_at?: string
@@ -174,16 +224,22 @@ export type Database = {
           payment_method?: string | null
           payment_received?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          pending_item?: string | null
           property_address?: string | null
           registration_charges?: number | null
           registration_date?: string
+          registration_handling_type?: string | null
           service_charges?: number | null
+          source_agent?: string | null
           support_number?: string | null
+          token_number?: string | null
           total_amount?: number | null
           updated_at?: string
           user_id?: string | null
+          verification_noc_status?: string | null
           verification_partner_name?: string | null
           verification_partner_user_id?: string | null
+          work_type?: string | null
         }
         Relationships: [
           {

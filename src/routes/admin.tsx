@@ -195,11 +195,11 @@ function AdminPanel() {
   useEffect(() => {
     if (loading) return;
     if (!session) {
-      navigate({ to: "/auth" });
+      navigate({ to: "/" });
       return;
     }
     if (!isAdmin) {
-      navigate({ to: "/dashboard" });
+      navigate({ to: "/" });
       return;
     }
     load();
@@ -228,7 +228,7 @@ function AdminPanel() {
 
   async function signOut() {
     await supabase.auth.signOut();
-    navigate({ to: "/auth" });
+    navigate({ to: "/" });
   }
 
   async function handleSeed() {

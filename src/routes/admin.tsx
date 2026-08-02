@@ -160,7 +160,7 @@ const INR = (n: number | null | undefined) =>
 
 function AdminPanel() {
   const navigate = useNavigate();
-  const { session, loading, isAdmin, hasBackofficeAccess } = useSession();
+  const { session, loading, hasBackofficeAccess } = useSession();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [fetching, setFetching] = useState(true);

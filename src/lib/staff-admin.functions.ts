@@ -3,12 +3,12 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 async function assertAdmin(ctx: { supabase: any; userId: string }) {
-  const { data, error } = await ctx.supabase.rpc("has_role", {
+  const { data, error } = await ctx.supabase.rpc("has_any_role", {
     _user_id: ctx.userId,
-    _role: "admin",
+    _roles: ["admin", "owner", "manager"],
   });
   if (error) throw new Error(error.message);
-  if (!data) throw new Error("Forbidden: admin role required");
+  if (!data) throw new Error("Forbidden: Owner / Manager / Admin only");
 }
 
 const StaffInput = z.object({
@@ -18,6 +18,10 @@ const StaffInput = z.object({
   email: z.string().email(),
   username: z.string().optional().nullable(),
   password: z.string().min(6),
+  roleName: z.string().optional().nullable(),
+  baseRole: z
+    .enum(["admin", "owner", "manager", "staff", "verification_partner", "viewer"])
+    .default("staff"),
   profilePhotoUrl: z.string().url().optional().nullable(),
   joiningDate: z.string().optional().nullable(),
 });
@@ -40,7 +44,7 @@ export const createStaff = createServerFn({ method: "POST" })
 
     const { error: rErr } = await supabaseAdmin
       .from("user_roles")
-      .insert({ user_id: uid, role: "staff" });
+      .insert({ user_id: uid, role: data.baseRole });
     if (rErr) {
       await supabaseAdmin.auth.admin.deleteUser(uid);
       throw new Error(rErr.message);
@@ -55,6 +59,7 @@ export const createStaff = createServerFn({ method: "POST" })
         mobile_number: data.mobileNumber,
         email: data.email,
         username: data.username ?? null,
+        role_name: data.roleName ?? null,
         profile_photo_url: data.profilePhotoUrl ?? null,
         joining_date: data.joiningDate ?? new Date().toISOString().slice(0, 10),
       })
@@ -78,6 +83,7 @@ const StaffPatch = z.object({
     profile_photo_url: z.string().url().nullable().optional(),
     joining_date: z.string().optional(),
     is_active: z.boolean().optional(),
+    role_name: z.string().nullable().optional(),
   }),
 });
 

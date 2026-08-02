@@ -23,7 +23,10 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { updateCustomer, addCustomerRemark } from "@/lib/customer-admin.functions";
-import { STATUS_STEPS, statusLabel, WORK_TYPES, PENDING_OPTIONS, NOC_OPTIONS } from "@/lib/status";
+import { STATUS_STEPS, statusLabel, WORK_TYPES, NOC_OPTIONS } from "@/lib/status";
+import { useMasters } from "@/hooks/use-masters";
+import { useSession } from "@/hooks/use-session";
+import { History } from "lucide-react";
 
 export type WorkflowRow = Record<string, any>;
 
@@ -63,12 +66,14 @@ function EditableCell({
   type = "text",
   className = "",
   placeholder = "—",
+  disabled = false,
   onSave,
 }: {
   value: string | number | null;
   type?: "text" | "number" | "date";
   className?: string;
   placeholder?: string;
+  disabled?: boolean;
   onSave: (v: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
@@ -91,7 +96,7 @@ function EditableCell({
     }
   }
 
-  if (editing) {
+  if (editing && !disabled) {
     return (
       <Input
         autoFocus
@@ -110,6 +115,7 @@ function EditableCell({
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={() => setEditing(true)}
       className={`min-h-8 w-full rounded px-1.5 py-1 text-left hover:bg-muted ${className}`}
       title="Click to edit"
@@ -124,14 +130,16 @@ function SelectCell({
   options,
   onSave,
   placeholder = "Select",
+  disabled = false,
 }: {
   value: string | null;
   options: { value: string; label: string }[];
   onSave: (v: string) => Promise<void>;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   return (
-    <Select value={value ?? undefined} onValueChange={(v) => onSave(v)}>
+    <Select value={value ?? undefined} disabled={disabled} onValueChange={(v) => onSave(v)}>
       <SelectTrigger className="h-8 min-w-36 border-transparent bg-transparent px-1.5 text-sm hover:bg-muted">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
@@ -155,8 +163,42 @@ export function WorkflowDashboard({
 }) {
   const updateFn = useServerFn(updateCustomer);
   const addRemarkFn = useServerFn(addCustomerRemark);
+  const { pendingReasons, statuses } = useMasters();
+  const { isAdmin, isManager, isStaff, isViewer } = useSession();
+  const [myStaffId, setMyStaffId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: row } = await supabase
+        .from("staff")
+        .select("id")
+        .eq("user_id", data.user.id)
+        .maybeSingle();
+      setMyStaffId(row?.id ?? null);
+    });
+  }, []);
+
+  const canEditAll = isAdmin || isManager;
+  function canEdit(row: WorkflowRow) {
+    if (isViewer && !canEditAll && !isStaff) return false;
+    if (canEditAll) return true;
+    if (isStaff) return Boolean(myStaffId) && row.assigned_staff_id === myStaffId;
+    return false;
+  }
+
+  const pendingOptionList = [
+    ...pendingReasons.filter((p) => p.is_active).map((p) => p.label),
+    "Other",
+  ];
+  const statusOptionList = [
+    ...statuses.filter((s) => s.is_active).map((s) => s.label),
+    "Other",
+  ];
 
   const [remarksFor, setRemarksFor] = useState<WorkflowRow | null>(null);
+  const [historyFor, setHistoryFor] = useState<WorkflowRow | null>(null);
+  const [otherFor, setOtherFor] = useState<{ row: WorkflowRow; field: "pending" | "status" } | null>(null);
   const [remarkCounts, setRemarkCounts] = useState<Record<string, number>>({});
 
   const [q, setQ] = useState("");
@@ -223,7 +265,7 @@ export function WorkflowDashboard({
       if (fStaff !== "all" && c.assigned_staff_id !== fStaff) return false;
       if (fWorkType !== "all" && c.work_type !== fWorkType) return false;
       if (fPending !== "all" && (c.pending_item ?? "") !== fPending) return false;
-      if (fStatus !== "all" && c.current_status !== fStatus) return false;
+      if (fStatus !== "all" && (c.workflow_status ?? statusLabel(c.current_status)) !== fStatus) return false;
       if (!query) return true;
       return (
         String(c.customer_name ?? "").toLowerCase().includes(query) ||
@@ -255,8 +297,8 @@ export function WorkflowDashboard({
         <FilterSelect label="Source (Agent)" value={fSource} onChange={setFSource} options={sources.map((s) => ({ value: s, label: s }))} allLabel="All sources" />
         <FilterSelect label="Staff" value={fStaff} onChange={setFStaff} options={staff.map((s) => ({ value: s.id, label: s.full_name }))} allLabel="All staff" />
         <FilterSelect label="Work Type" value={fWorkType} onChange={setFWorkType} options={workTypes.map((t) => ({ value: t, label: t }))} allLabel="All work types" />
-        <FilterSelect label="Pending" value={fPending} onChange={setFPending} options={PENDING_OPTIONS.map((p) => ({ value: p, label: p }))} allLabel="All pending" />
-        <FilterSelect label="Status" value={fStatus} onChange={setFStatus} options={STATUS_STEPS.map((s) => ({ value: s.key, label: s.label }))} allLabel="All statuses" />
+        <FilterSelect label="Pending" value={fPending} onChange={setFPending} options={pendingOptionList.map((p) => ({ value: p, label: p }))} allLabel="All pending" />
+        <FilterSelect label="Status" value={fStatus} onChange={setFStatus} options={[...statusOptionList, ...STATUS_STEPS.map((s) => s.label)].map((s) => ({ value: s, label: s }))} allLabel="All statuses" />
         <div className="flex items-end">
           <Button
             variant="outline"
@@ -300,19 +342,20 @@ export function WorkflowDashboard({
                   return (
                     <tr key={c.id} className="border-t align-top hover:bg-muted/30">
                       <td className="px-3 py-2">
-                        <EditableCell type="date" value={(c.registration_date ?? "").slice(0, 10)} onSave={(v) => patch(c, { registration_date: v })} />
+                        <EditableCell disabled={!canEdit(c)} type="date" value={(c.registration_date ?? "").slice(0, 10)} onSave={(v) => patch(c, { registration_date: v })} />
                       </td>
                       <td className="px-3 py-2 font-mono font-semibold">
-                        <EditableCell value={c.token_number} placeholder="Set token" onSave={(v) => patch(c, { token_number: v || null })} />
+                        <EditableCell disabled={!canEdit(c)} value={c.token_number} placeholder="Set token" onSave={(v) => patch(c, { token_number: v || null })} />
                       </td>
                       <td className="px-3 py-2">
-                        <EditableCell value={c.source_agent} onSave={(v) => patch(c, { source_agent: v || null })} />
+                        <EditableCell disabled={!canEdit(c)} value={c.source_agent} onSave={(v) => patch(c, { source_agent: v || null })} />
                       </td>
                       <td className="max-w-64 px-3 py-2">
-                        <EditableCell value={c.property_address} className="whitespace-pre-wrap" onSave={(v) => patch(c, { property_address: v || null })} />
+                        <EditableCell disabled={!canEdit(c)} value={c.property_address} className="whitespace-pre-wrap" onSave={(v) => patch(c, { property_address: v || null })} />
                       </td>
                       <td className="px-3 py-2">
                         <SelectCell
+                          disabled={!canEdit(c)}
                           value={c.verification_noc_status}
                           options={NOC_OPTIONS.map((o) => ({ value: o, label: o }))}
                           onSave={(v) => patch(c, { verification_noc_status: v })}
@@ -322,10 +365,10 @@ export function WorkflowDashboard({
                         </div>
                       </td>
                       <td className="px-3 py-2">
-                        <EditableCell type="number" value={fees} onSave={(v) => saveFees(c, Number(v) || 0)} />
+                        <EditableCell disabled={!canEdit(c)} type="number" value={fees} onSave={(v) => saveFees(c, Number(v) || 0)} />
                       </td>
                       <td className="px-3 py-2">
-                        <EditableCell type="number" value={received} onSave={(v) => saveReceived(c, Number(v) || 0)} />
+                        <EditableCell disabled={!canEdit(c)} type="number" value={received} onSave={(v) => saveReceived(c, Number(v) || 0)} />
                       </td>
                       <td className="px-3 py-2">
                         <span className={balance > 0 ? "font-semibold text-destructive" : "font-semibold text-success"}>{INR(balance)}</span>
@@ -333,7 +376,7 @@ export function WorkflowDashboard({
                       <td className="px-3 py-2">
                         <SelectCell
                           value={c.pending_item}
-                          options={PENDING_OPTIONS.map((p) => ({ value: p, label: p }))}
+                          options={pendingOptionList.map((p) => ({ value: p, label: p }))}
                           onSave={(v) => patch(c, { pending_item: v })}
                         />
                         <div className="px-1.5 pt-1">
@@ -342,19 +385,28 @@ export function WorkflowDashboard({
                       </td>
                       <td className="px-3 py-2">
                         <SelectCell
-                          value={c.current_status}
-                          options={STATUS_STEPS.map((s) => ({ value: s.key, label: s.label }))}
-                          onSave={(v) => patch(c, { current_status: v })}
+                          disabled={!canEdit(c)}
+                          value={c.workflow_status ?? statusLabel(c.current_status)}
+                          options={statusOptionList.map((s) => ({ value: s, label: s }))}
+                          onSave={async (v) => {
+                            if (v === "Other") return setOtherFor({ row: c, field: "status" });
+                            await patch(c, { workflow_status: v });
+                          }}
                         />
                         <div className="px-1.5 pt-1">
-                          <WorkflowBadge value={c.current_status} kind="status" />
+                          <WorkflowBadge value={c.workflow_status ?? c.current_status} kind="status" />
                         </div>
                       </td>
                       <td className="px-3 py-2">
-                        <Button size="sm" variant="outline" onClick={() => setRemarksFor(c)}>
-                          <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
-                          {remarkCounts[c.id] ?? 0}
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="outline" onClick={() => setRemarksFor(c)}>
+                            <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+                            {remarkCounts[c.id] ?? 0}
+                          </Button>
+                          <Button size="sm" variant="ghost" title="Payment history" onClick={() => setHistoryFor(c)}>
+                            <History className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -364,6 +416,24 @@ export function WorkflowDashboard({
           </table>
         </div>
       </div>
+
+      {historyFor && (
+        <PaymentHistoryDialog customer={historyFor} onClose={() => setHistoryFor(null)} />
+      )}
+
+      {otherFor && (
+        <OtherReasonDialog
+          field={otherFor.field}
+          onClose={() => setOtherFor(null)}
+          onSave={async (text) => {
+            await patch(
+              otherFor.row,
+              otherFor.field === "pending" ? { pending_item: text } : { workflow_status: text },
+            );
+            setOtherFor(null);
+          }}
+        />
+      )}
 
       {remarksFor && (
         <RemarksDialog
@@ -489,6 +559,80 @@ function RemarksDialog({
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Close</Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+function OtherReasonDialog({
+  field,
+  onClose,
+  onSave,
+}: {
+  field: "pending" | "status";
+  onClose: () => void;
+  onSave: (text: string) => Promise<void>;
+}) {
+  const [text, setText] = useState("");
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{field === "pending" ? "Specify Pending Reason" : "Specify Status"}</DialogTitle>
+        </DialogHeader>
+        <Input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Required" />
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            disabled={!text.trim()}
+            onClick={() => onSave(text.trim())}
+          >
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PaymentHistoryDialog({ customer, onClose }: { customer: WorkflowRow; onClose: () => void }) {
+  const [items, setItems] = useState<any[]>([]);
+  useEffect(() => {
+    supabase
+      .from("payment_history")
+      .select("*")
+      .eq("customer_id", customer.id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setItems(data ?? []));
+  }, [customer.id]);
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Payment history — {customer.token_number ?? customer.customer_name}</DialogTitle>
+        </DialogHeader>
+        {items.length === 0 ? (
+          <p className="py-6 text-center text-muted-foreground">No fee or payment changes recorded yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {items.map((h) => (
+              <div key={h.id} className="rounded-lg border p-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">{h.field}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(h.created_at).toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <p className="mt-1">
+                  {INR(Number(h.previous_amount))} → <span className="font-semibold">{INR(Number(h.new_amount))}</span>
+                </p>
+                <p className="text-xs text-muted-foreground">Updated by {h.updated_by_name ?? "—"}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

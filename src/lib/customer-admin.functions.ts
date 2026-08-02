@@ -28,6 +28,7 @@ const CustomerInput = z.object({
   registrationHandlingType: z.string().optional().nullable(),
   verificationNocStatus: z.string().optional().nullable(),
   pendingItem: z.string().optional().nullable(),
+  workflowStatus: z.string().optional().nullable(),
   currentStatus: z.string().optional().nullable(),
   totalFees: z.number().optional().nullable(),
   // Registration Staff — MANDATORY
@@ -40,7 +41,10 @@ const CustomerInput = z.object({
 
 
 async function assertAdminOrStaff(ctx: { supabase: any; userId: string }) {
-  const { data: a } = await ctx.supabase.rpc("has_role", { _user_id: ctx.userId, _role: "admin" });
+  const { data: a } = await ctx.supabase.rpc("has_any_role", {
+    _user_id: ctx.userId,
+    _roles: ["admin", "owner", "manager"],
+  });
   if (a) return "admin";
   const { data: s } = await ctx.supabase.rpc("has_role", { _user_id: ctx.userId, _role: "staff" });
   if (s) return "staff";
@@ -152,6 +156,7 @@ export const createCustomer = createServerFn({ method: "POST" })
         registration_handling_type: data.registrationHandlingType ?? null,
         verification_noc_status: data.verificationNocStatus ?? null,
         pending_item: data.pendingItem ?? null,
+        workflow_status: data.workflowStatus ?? null,
         appointment_time: data.appointmentTime ?? null,
         ...(data.registrationDate ? { registration_date: data.registrationDate } : {}),
         ...(data.currentStatus ? { current_status: data.currentStatus as any } : {}),
@@ -213,6 +218,7 @@ const UpdateInput = z.object({
     registration_handling_type: z.string().nullable().optional(),
     verification_noc_status: z.string().nullable().optional(),
     pending_item: z.string().nullable().optional(),
+    workflow_status: z.string().nullable().optional(),
     appointment_time: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
 
@@ -223,16 +229,75 @@ export const updateCustomer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: z.infer<typeof UpdateInput>) => UpdateInput.parse(data))
   .handler(async ({ data, context }) => {
-    await assertAdminOrStaff(context);
-    const { data: row, error } = await context.supabase
+    const tier = await assertAdminOrStaff(context);
+
+    const { data: before, error: beforeErr } = await context.supabase
       .from("customers")
-      .update(data.patch)
+      .select("id, assigned_staff_id, total_amount, payment_received")
+      .eq("id", data.id)
+      .single();
+    if (beforeErr) throw new Error(beforeErr.message);
+
+    if (tier === "staff") {
+      const { data: me } = await context.supabase
+        .from("staff")
+        .select("id")
+        .eq("user_id", context.userId)
+        .maybeSingle();
+      if (!me || before.assigned_staff_id !== me.id) {
+        throw new Error("You can only edit records assigned to you.");
+      }
+    }
+
+    const patch: Record<string, any> = { ...data.patch };
+    // Balance is always recalculated by the system
+    if (patch["total_amount"] !== undefined || patch["payment_received"] !== undefined) {
+      const fees = Number(patch["total_amount"] ?? before.total_amount ?? 0);
+      const received = Number(patch["payment_received"] ?? before.payment_received ?? 0);
+      patch["balance_amount"] = Math.max(0, fees - received);
+    }
+
+    const { data: row, error } = await (context.supabase.from("customers") as any)
+      .update(patch)
       .eq("id", data.id)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
+
+    // Payment change history
+    const history: any[] = [];
+    const actorName =
+      (context.claims as any)?.["user_metadata"]?.["full_name"] ??
+      (context.claims as any)?.["email"] ??
+      "Team member";
+    if (patch["total_amount"] !== undefined && Number(patch["total_amount"]) !== Number(before.total_amount ?? 0)) {
+      history.push({
+        customer_id: data.id,
+        field: "Fees",
+        previous_amount: before.total_amount ?? 0,
+        new_amount: patch["total_amount"],
+        updated_by: context.userId,
+        updated_by_name: actorName,
+      });
+    }
+    if (
+      patch["payment_received"] !== undefined &&
+      Number(patch["payment_received"]) !== Number(before.payment_received ?? 0)
+    ) {
+      history.push({
+        customer_id: data.id,
+        field: "Amount Received",
+        previous_amount: before.payment_received ?? 0,
+        new_amount: patch["payment_received"],
+        updated_by: context.userId,
+        updated_by_name: actorName,
+      });
+    }
+    if (history.length) await context.supabase.from("payment_history").insert(history);
+
     return row;
   });
+
 
 export const deleteCustomer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

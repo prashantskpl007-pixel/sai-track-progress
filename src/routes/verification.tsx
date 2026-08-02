@@ -117,7 +117,7 @@ function VerificationDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!loading && !session) navigate({ to: "/auth" });
+    if (!loading && !session) navigate({ to: "/" });
   }, [loading, session, navigate]);
 
   useEffect(() => {
@@ -149,7 +149,7 @@ function VerificationDashboard() {
     return (
       <div className="mx-auto max-w-md p-8 text-center">
         <p className="text-muted-foreground">This dashboard is only for Verification Partners.</p>
-        <Button onClick={() => navigate({ to: "/auth" })} className="mt-4">Back to sign in</Button>
+        <Button onClick={() => navigate({ to: "/" })} className="mt-4">Back to sign in</Button>
       </div>
     );
   }
@@ -172,7 +172,7 @@ function VerificationDashboard() {
             className="text-primary-foreground"
             onClick={async () => {
               await supabase.auth.signOut();
-              navigate({ to: "/auth" });
+              navigate({ to: "/" });
             }}
           >
             <LogOut className="mr-2 h-4 w-4" /> Sign out

@@ -96,6 +96,8 @@ import {
 
 import { KycPanel } from "@/components/KycPanel";
 import { WorkflowDashboard } from "@/components/WorkflowDashboard";
+import { MasterModule } from "@/components/MasterModule";
+import { useMasters } from "@/hooks/use-masters";
 
 import {
   listVerificationPartners,
@@ -159,7 +161,7 @@ const INR = (n: number | null | undefined) =>
 
 function AdminPanel() {
   const navigate = useNavigate();
-  const { session, loading, isAdmin } = useSession();
+  const { session, loading, hasBackofficeAccess } = useSession();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [fetching, setFetching] = useState(true);
@@ -195,15 +197,15 @@ function AdminPanel() {
   useEffect(() => {
     if (loading) return;
     if (!session) {
-      navigate({ to: "/auth" });
+      navigate({ to: "/" });
       return;
     }
-    if (!isAdmin) {
-      navigate({ to: "/dashboard" });
+    if (!hasBackofficeAccess) {
+      navigate({ to: "/" });
       return;
     }
     load();
-  }, [session, loading, isAdmin]);
+  }, [session, loading, hasBackofficeAccess]);
 
   async function load() {
     setFetching(true);
@@ -228,7 +230,7 @@ function AdminPanel() {
 
   async function signOut() {
     await supabase.auth.signOut();
-    navigate({ to: "/auth" });
+    navigate({ to: "/" });
   }
 
   async function handleSeed() {
@@ -424,7 +426,7 @@ function AdminPanel() {
             <TabsTrigger value="workflow"><StickyNote className="mr-1.5 h-4 w-4" />Workflow</TabsTrigger>
             <TabsTrigger value="overview"><BarChart3 className="mr-1.5 h-4 w-4" />Overview</TabsTrigger>
             <TabsTrigger value="customers"><Users className="mr-1.5 h-4 w-4" />Customers</TabsTrigger>
-            <TabsTrigger value="staff"><UserCog className="mr-1.5 h-4 w-4" />Staff</TabsTrigger>
+            <TabsTrigger value="master"><UserCog className="mr-1.5 h-4 w-4" />Master</TabsTrigger>
             <TabsTrigger value="alerts">
               <AlertTriangle className="mr-1.5 h-4 w-4" />Alerts
               {alerts.length > 0 && (
@@ -683,84 +685,8 @@ function AdminPanel() {
           </TabsContent>
 
           {/* ===== STAFF ===== */}
-          <TabsContent value="staff">
-            <div className="flex items-center justify-between rounded-2xl border bg-card p-4 shadow-elegant">
-              <div>
-                <h2 className="font-display text-lg font-semibold">Staff members</h2>
-                <p className="text-sm text-muted-foreground">Team members with individual logins.</p>
-              </div>
-              <Dialog open={staffCreateOpen} onOpenChange={setStaffCreateOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-gold-gradient text-gold-foreground shadow-gold">
-                    <Plus className="mr-2 h-4 w-4" /> Add Staff
-                  </Button>
-                </DialogTrigger>
-                <StaffFormDialog
-                  onSubmit={async (values) => {
-                    try {
-                      await createStaffFn({ data: values });
-                      toast.success("Staff added");
-                      setStaffCreateOpen(false);
-                      await load();
-                    } catch (e: any) {
-                      toast.error(e.message);
-                    }
-                  }}
-                />
-              </Dialog>
-            </div>
-
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {staff.length === 0 ? (
-                <div className="col-span-full rounded-2xl border bg-card p-10 text-center text-muted-foreground shadow-elegant">
-                  No staff yet. Click "Add Staff" to create the first team member.
-                </div>
-              ) : (
-                staff.map((s) => (
-                  <div key={s.id} className="rounded-2xl border bg-card p-5 shadow-elegant">
-                    <div className="flex items-start gap-3">
-                      <Avatar className="h-14 w-14">
-                        <AvatarImage src={s.profile_photo_url ?? undefined} />
-                        <AvatarFallback>{s.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-display font-semibold">{s.full_name}</p>
-                          {!s.is_active && <Badge variant="outline" className="text-xs">Inactive</Badge>}
-                        </div>
-                        <p className="text-sm text-muted-foreground">{s.designation}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{s.email}</p>
-                        <p className="text-xs text-muted-foreground">{s.mobile_number}</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" onClick={() => setStaffEditing(s)}>
-                        <Pencil className="mr-1 h-3 w-3" /> Edit
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setStaffPwdFor(s)}>
-                        <KeyRound className="mr-1 h-3 w-3" /> Password
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={async () => {
-                          if (!confirm(`Delete ${s.full_name}?`)) return;
-                          try {
-                            await deleteStaffFn({ data: { id: s.id } });
-                            toast.success("Deleted");
-                            await load();
-                          } catch (e: any) {
-                            toast.error(e.message);
-                          }
-                        }}
-                      >
-                        <Trash2 className="mr-1 h-3 w-3 text-destructive" /> Delete
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+          <TabsContent value="master">
+            <MasterModule staff={staff} onStaffChanged={load} />
           </TabsContent>
 
           {/* ===== ALERTS ===== */}
@@ -1295,6 +1221,7 @@ function CustomerFormDialog({
   staff: Staff[];
   partners: any[];
 }) {
+  const { pendingReasons: masterPending, statuses: masterStatuses } = useMasters();
   const [values, setValues] = useState({
     registrationDate: new Date().toISOString().slice(0, 10),
     tokenNumber: "",
@@ -1310,7 +1237,10 @@ function CustomerFormDialog({
     verificationNocStatus: NOC_OPTIONS[0],
     totalFees: "",
     paymentReceived: "",
-    pendingItem: PENDING_OPTIONS[0],
+    pendingItem: "",
+    workflowStatus: "",
+    pendingOther: "",
+    statusOther: "",
     currentStatus: "application_created" as string,
     appointmentDate: "",
     appointmentTime: "",
@@ -1410,14 +1340,36 @@ function CustomerFormDialog({
           <Field label="Pending">
             <Select value={values.pendingItem} onValueChange={(v) => setValues({ ...values, pendingItem: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{PENDING_OPTIONS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              <SelectContent>
+                {masterPending.filter((p) => p.is_active).map((t) => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
             </Select>
+            {values.pendingItem === "Other" && (
+              <Input
+                className="mt-2"
+                placeholder="Specify pending reason (required)"
+                value={values.pendingOther}
+                onChange={(e) => setValues({ ...values, pendingOther: e.target.value })}
+              />
+            )}
           </Field>
           <Field label="Current Status">
-            <Select value={values.currentStatus} onValueChange={(v) => setValues({ ...values, currentStatus: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{STATUS_STEPS.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}</SelectContent>
+            <Select value={values.workflowStatus} onValueChange={(v) => setValues({ ...values, workflowStatus: v })}>
+              <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+              <SelectContent>
+                {masterStatuses.filter((p) => p.is_active).map((t) => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
             </Select>
+            {values.workflowStatus === "Other" && (
+              <Input
+                className="mt-2"
+                placeholder="Specify status (required)"
+                value={values.statusOther}
+                onChange={(e) => setValues({ ...values, statusOther: e.target.value })}
+              />
+            )}
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -1468,7 +1420,10 @@ function CustomerFormDialog({
                     : (Number(values.paymentReceived) || 0) >= (Number(values.totalFees) || 0)
                       ? "paid"
                       : "partial",
-                pendingItem: values.pendingItem,
+                pendingItem:
+                  values.pendingItem === "Other" ? values.pendingOther.trim() : values.pendingItem,
+                workflowStatus:
+                  values.workflowStatus === "Other" ? values.statusOther.trim() : values.workflowStatus || null,
                 currentStatus: values.currentStatus,
                 appointmentDate: values.appointmentDate ? new Date(`${values.appointmentDate}T${values.appointmentTime || "00:00"}`).toISOString() : null,
                 appointmentTime: values.appointmentTime || null,

@@ -1236,6 +1236,9 @@ function CustomerFormDialog({
     totalFees: "",
     paymentReceived: "",
     pendingItem: PENDING_OPTIONS[0],
+    workflowStatus: "",
+    pendingOther: "",
+    statusOther: "",
     currentStatus: "application_created" as string,
     appointmentDate: "",
     appointmentTime: "",
@@ -1335,14 +1338,36 @@ function CustomerFormDialog({
           <Field label="Pending">
             <Select value={values.pendingItem} onValueChange={(v) => setValues({ ...values, pendingItem: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{PENDING_OPTIONS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              <SelectContent>
+                {masterPending.filter((p) => p.is_active).map((t) => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
             </Select>
+            {values.pendingItem === "Other" && (
+              <Input
+                className="mt-2"
+                placeholder="Specify pending reason (required)"
+                value={values.pendingOther}
+                onChange={(e) => setValues({ ...values, pendingOther: e.target.value })}
+              />
+            )}
           </Field>
           <Field label="Current Status">
-            <Select value={values.currentStatus} onValueChange={(v) => setValues({ ...values, currentStatus: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{STATUS_STEPS.map((s) => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}</SelectContent>
+            <Select value={values.workflowStatus} onValueChange={(v) => setValues({ ...values, workflowStatus: v })}>
+              <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+              <SelectContent>
+                {masterStatuses.filter((p) => p.is_active).map((t) => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
             </Select>
+            {values.workflowStatus === "Other" && (
+              <Input
+                className="mt-2"
+                placeholder="Specify status (required)"
+                value={values.statusOther}
+                onChange={(e) => setValues({ ...values, statusOther: e.target.value })}
+              />
+            )}
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">

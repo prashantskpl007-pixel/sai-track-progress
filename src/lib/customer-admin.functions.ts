@@ -28,6 +28,7 @@ const CustomerInput = z.object({
   registrationHandlingType: z.string().optional().nullable(),
   verificationNocStatus: z.string().optional().nullable(),
   pendingItem: z.string().optional().nullable(),
+  workflowStatus: z.string().optional().nullable(),
   currentStatus: z.string().optional().nullable(),
   totalFees: z.number().optional().nullable(),
   // Registration Staff — MANDATORY
@@ -155,6 +156,7 @@ export const createCustomer = createServerFn({ method: "POST" })
         registration_handling_type: data.registrationHandlingType ?? null,
         verification_noc_status: data.verificationNocStatus ?? null,
         pending_item: data.pendingItem ?? null,
+        workflow_status: data.workflowStatus ?? null,
         appointment_time: data.appointmentTime ?? null,
         ...(data.registrationDate ? { registration_date: data.registrationDate } : {}),
         ...(data.currentStatus ? { current_status: data.currentStatus as any } : {}),

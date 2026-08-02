@@ -223,16 +223,76 @@ export const updateCustomer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: z.infer<typeof UpdateInput>) => UpdateInput.parse(data))
   .handler(async ({ data, context }) => {
-    await assertAdminOrStaff(context);
+    const tier = await assertAdminOrStaff(context);
+
+    const { data: before, error: beforeErr } = await context.supabase
+      .from("customers")
+      .select("id, assigned_staff_id, total_amount, payment_received")
+      .eq("id", data.id)
+      .single();
+    if (beforeErr) throw new Error(beforeErr.message);
+
+    if (tier === "staff") {
+      const { data: me } = await context.supabase
+        .from("staff")
+        .select("id")
+        .eq("user_id", context.userId)
+        .maybeSingle();
+      if (!me || before.assigned_staff_id !== me.id) {
+        throw new Error("You can only edit records assigned to you.");
+      }
+    }
+
+    const patch: Record<string, any> = { ...data.patch };
+    // Balance is always recalculated by the system
+    if (patch["total_amount"] !== undefined || patch["payment_received"] !== undefined) {
+      const fees = Number(patch["total_amount"] ?? before.total_amount ?? 0);
+      const received = Number(patch["payment_received"] ?? before.payment_received ?? 0);
+      patch["balance_amount"] = Math.max(0, fees - received);
+    }
+
     const { data: row, error } = await context.supabase
       .from("customers")
-      .update(data.patch)
+      .update(patch)
       .eq("id", data.id)
       .select("*")
       .single();
     if (error) throw new Error(error.message);
+
+    // Payment change history
+    const history: any[] = [];
+    const actorName =
+      (context.claims as any)?.["user_metadata"]?.["full_name"] ??
+      (context.claims as any)?.["email"] ??
+      "Team member";
+    if (patch["total_amount"] !== undefined && Number(patch["total_amount"]) !== Number(before.total_amount ?? 0)) {
+      history.push({
+        customer_id: data.id,
+        field: "Fees",
+        previous_amount: before.total_amount ?? 0,
+        new_amount: patch["total_amount"],
+        updated_by: context.userId,
+        updated_by_name: actorName,
+      });
+    }
+    if (
+      patch["payment_received"] !== undefined &&
+      Number(patch["payment_received"]) !== Number(before.payment_received ?? 0)
+    ) {
+      history.push({
+        customer_id: data.id,
+        field: "Amount Received",
+        previous_amount: before.payment_received ?? 0,
+        new_amount: patch["payment_received"],
+        updated_by: context.userId,
+        updated_by_name: actorName,
+      });
+    }
+    if (history.length) await context.supabase.from("payment_history").insert(history);
+
     return row;
   });
+
 
 export const deleteCustomer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

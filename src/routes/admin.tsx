@@ -96,6 +96,7 @@ import {
 
 import { KycPanel } from "@/components/KycPanel";
 import { WorkflowDashboard } from "@/components/WorkflowDashboard";
+import { MasterModule } from "@/components/MasterModule";
 
 import {
   listVerificationPartners,
@@ -159,7 +160,7 @@ const INR = (n: number | null | undefined) =>
 
 function AdminPanel() {
   const navigate = useNavigate();
-  const { session, loading, isAdmin } = useSession();
+  const { session, loading, isAdmin, hasBackofficeAccess } = useSession();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [fetching, setFetching] = useState(true);
@@ -198,12 +199,12 @@ function AdminPanel() {
       navigate({ to: "/" });
       return;
     }
-    if (!isAdmin) {
+    if (!hasBackofficeAccess) {
       navigate({ to: "/" });
       return;
     }
     load();
-  }, [session, loading, isAdmin]);
+  }, [session, loading, hasBackofficeAccess]);
 
   async function load() {
     setFetching(true);
@@ -424,7 +425,7 @@ function AdminPanel() {
             <TabsTrigger value="workflow"><StickyNote className="mr-1.5 h-4 w-4" />Workflow</TabsTrigger>
             <TabsTrigger value="overview"><BarChart3 className="mr-1.5 h-4 w-4" />Overview</TabsTrigger>
             <TabsTrigger value="customers"><Users className="mr-1.5 h-4 w-4" />Customers</TabsTrigger>
-            <TabsTrigger value="staff"><UserCog className="mr-1.5 h-4 w-4" />Staff</TabsTrigger>
+            <TabsTrigger value="master"><UserCog className="mr-1.5 h-4 w-4" />Master</TabsTrigger>
             <TabsTrigger value="alerts">
               <AlertTriangle className="mr-1.5 h-4 w-4" />Alerts
               {alerts.length > 0 && (
@@ -683,84 +684,8 @@ function AdminPanel() {
           </TabsContent>
 
           {/* ===== STAFF ===== */}
-          <TabsContent value="staff">
-            <div className="flex items-center justify-between rounded-2xl border bg-card p-4 shadow-elegant">
-              <div>
-                <h2 className="font-display text-lg font-semibold">Staff members</h2>
-                <p className="text-sm text-muted-foreground">Team members with individual logins.</p>
-              </div>
-              <Dialog open={staffCreateOpen} onOpenChange={setStaffCreateOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-gold-gradient text-gold-foreground shadow-gold">
-                    <Plus className="mr-2 h-4 w-4" /> Add Staff
-                  </Button>
-                </DialogTrigger>
-                <StaffFormDialog
-                  onSubmit={async (values) => {
-                    try {
-                      await createStaffFn({ data: values });
-                      toast.success("Staff added");
-                      setStaffCreateOpen(false);
-                      await load();
-                    } catch (e: any) {
-                      toast.error(e.message);
-                    }
-                  }}
-                />
-              </Dialog>
-            </div>
-
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {staff.length === 0 ? (
-                <div className="col-span-full rounded-2xl border bg-card p-10 text-center text-muted-foreground shadow-elegant">
-                  No staff yet. Click "Add Staff" to create the first team member.
-                </div>
-              ) : (
-                staff.map((s) => (
-                  <div key={s.id} className="rounded-2xl border bg-card p-5 shadow-elegant">
-                    <div className="flex items-start gap-3">
-                      <Avatar className="h-14 w-14">
-                        <AvatarImage src={s.profile_photo_url ?? undefined} />
-                        <AvatarFallback>{s.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-display font-semibold">{s.full_name}</p>
-                          {!s.is_active && <Badge variant="outline" className="text-xs">Inactive</Badge>}
-                        </div>
-                        <p className="text-sm text-muted-foreground">{s.designation}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{s.email}</p>
-                        <p className="text-xs text-muted-foreground">{s.mobile_number}</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" onClick={() => setStaffEditing(s)}>
-                        <Pencil className="mr-1 h-3 w-3" /> Edit
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setStaffPwdFor(s)}>
-                        <KeyRound className="mr-1 h-3 w-3" /> Password
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={async () => {
-                          if (!confirm(`Delete ${s.full_name}?`)) return;
-                          try {
-                            await deleteStaffFn({ data: { id: s.id } });
-                            toast.success("Deleted");
-                            await load();
-                          } catch (e: any) {
-                            toast.error(e.message);
-                          }
-                        }}
-                      >
-                        <Trash2 className="mr-1 h-3 w-3 text-destructive" /> Delete
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+          <TabsContent value="master">
+            <MasterModule staff={staff} onStaffChanged={load} />
           </TabsContent>
 
           {/* ===== ALERTS ===== */}

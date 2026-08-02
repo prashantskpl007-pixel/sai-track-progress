@@ -177,7 +177,7 @@ function SimpleMasterList({ kind, title }: { kind: "pending" | "status"; title: 
           initial={editing.label}
           title={`Edit ${title}`}
           onClose={() => setEditing(null)}
-          onSave={(v) => save(v, editing.id)}
+          onSave={async (v) => { await save(v, editing.id); }}
         />
       )}
     </div>

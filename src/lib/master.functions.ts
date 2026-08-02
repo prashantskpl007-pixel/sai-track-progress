@@ -50,8 +50,9 @@ export const upsertMasterItem = createServerFn({ method: "POST" })
     if (data.isActive != null) payload["is_active"] = data.isActive;
 
     const q = data.id
-      ? context.supabase.from(table).update(payload).eq("id", data.id)
-      : context.supabase.from(table).insert(payload);
+      ? (context.supabase.from(table) as any).update(payload).eq("id", data.id)
+      : (context.supabase.from(table) as any).insert(payload);
+
     const { data: row, error } = await q.select("*").single();
     if (error) throw new Error(error.message);
     return row;

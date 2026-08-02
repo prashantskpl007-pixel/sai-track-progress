@@ -97,6 +97,7 @@ import {
 import { KycPanel } from "@/components/KycPanel";
 import { WorkflowDashboard } from "@/components/WorkflowDashboard";
 import { MasterModule } from "@/components/MasterModule";
+import { useMasters } from "@/hooks/use-masters";
 
 import {
   listVerificationPartners,
@@ -1220,6 +1221,7 @@ function CustomerFormDialog({
   staff: Staff[];
   partners: any[];
 }) {
+  const { pendingReasons: masterPending, statuses: masterStatuses } = useMasters();
   const [values, setValues] = useState({
     registrationDate: new Date().toISOString().slice(0, 10),
     tokenNumber: "",

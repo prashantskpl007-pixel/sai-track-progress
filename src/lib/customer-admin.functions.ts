@@ -40,7 +40,10 @@ const CustomerInput = z.object({
 
 
 async function assertAdminOrStaff(ctx: { supabase: any; userId: string }) {
-  const { data: a } = await ctx.supabase.rpc("has_role", { _user_id: ctx.userId, _role: "admin" });
+  const { data: a } = await ctx.supabase.rpc("has_any_role", {
+    _user_id: ctx.userId,
+    _roles: ["admin", "owner", "manager"],
+  });
   if (a) return "admin";
   const { data: s } = await ctx.supabase.rpc("has_role", { _user_id: ctx.userId, _role: "staff" });
   if (s) return "staff";
@@ -213,6 +216,7 @@ const UpdateInput = z.object({
     registration_handling_type: z.string().nullable().optional(),
     verification_noc_status: z.string().nullable().optional(),
     pending_item: z.string().nullable().optional(),
+    workflow_status: z.string().nullable().optional(),
     appointment_time: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
 
@@ -251,8 +255,7 @@ export const updateCustomer = createServerFn({ method: "POST" })
       patch["balance_amount"] = Math.max(0, fees - received);
     }
 
-    const { data: row, error } = await context.supabase
-      .from("customers")
+    const { data: row, error } = await (context.supabase.from("customers") as any)
       .update(patch)
       .eq("id", data.id)
       .select("*")

@@ -156,6 +156,7 @@ export type Database = {
           verification_partner_name: string | null
           verification_partner_user_id: string | null
           work_type: string | null
+          workflow_status: string | null
         }
         Insert: {
           agreement_charges?: number | null
@@ -198,6 +199,7 @@ export type Database = {
           verification_partner_name?: string | null
           verification_partner_user_id?: string | null
           work_type?: string | null
+          workflow_status?: string | null
         }
         Update: {
           agreement_charges?: number | null
@@ -240,6 +242,7 @@ export type Database = {
           verification_partner_name?: string | null
           verification_partner_user_id?: string | null
           work_type?: string | null
+          workflow_status?: string | null
         }
         Relationships: [
           {
@@ -342,6 +345,93 @@ export type Database = {
           },
         ]
       }
+      master_pending_reasons: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      master_roles: {
+        Row: {
+          base_role: Database["public"]["Enums"]["app_role"]
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          base_role?: Database["public"]["Enums"]["app_role"]
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          base_role?: Database["public"]["Enums"]["app_role"]
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      master_workflow_statuses: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -377,6 +467,47 @@ export type Database = {
           },
         ]
       }
+      payment_history: {
+        Row: {
+          created_at: string
+          customer_id: string
+          field: string
+          id: string
+          new_amount: number | null
+          previous_amount: number | null
+          updated_by: string | null
+          updated_by_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          field: string
+          id?: string
+          new_amount?: number | null
+          previous_amount?: number | null
+          updated_by?: string | null
+          updated_by_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          field?: string
+          id?: string
+          new_amount?: number | null
+          previous_amount?: number | null
+          updated_by?: string | null
+          updated_by_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_history_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff: {
         Row: {
           created_at: string
@@ -388,6 +519,7 @@ export type Database = {
           joining_date: string
           mobile_number: string
           profile_photo_url: string | null
+          role_name: string | null
           updated_at: string
           user_id: string | null
           username: string | null
@@ -402,6 +534,7 @@ export type Database = {
           joining_date?: string
           mobile_number: string
           profile_photo_url?: string | null
+          role_name?: string | null
           updated_at?: string
           user_id?: string | null
           username?: string | null
@@ -416,6 +549,7 @@ export type Database = {
           joining_date?: string
           mobile_number?: string
           profile_photo_url?: string | null
+          role_name?: string | null
           updated_at?: string
           user_id?: string | null
           username?: string | null

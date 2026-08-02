@@ -1237,7 +1237,7 @@ function CustomerFormDialog({
     verificationNocStatus: NOC_OPTIONS[0],
     totalFees: "",
     paymentReceived: "",
-    pendingItem: PENDING_OPTIONS[0],
+    pendingItem: "",
     workflowStatus: "",
     pendingOther: "",
     statusOther: "",
@@ -1420,7 +1420,10 @@ function CustomerFormDialog({
                     : (Number(values.paymentReceived) || 0) >= (Number(values.totalFees) || 0)
                       ? "paid"
                       : "partial",
-                pendingItem: values.pendingItem,
+                pendingItem:
+                  values.pendingItem === "Other" ? values.pendingOther.trim() : values.pendingItem,
+                workflowStatus:
+                  values.workflowStatus === "Other" ? values.statusOther.trim() : values.workflowStatus || null,
                 currentStatus: values.currentStatus,
                 appointmentDate: values.appointmentDate ? new Date(`${values.appointmentDate}T${values.appointmentTime || "00:00"}`).toISOString() : null,
                 appointmentTime: values.appointmentTime || null,

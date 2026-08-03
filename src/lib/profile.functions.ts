@@ -37,7 +37,7 @@ export const updateMyProfile = createServerFn({ method: "POST" })
     if (Object.keys(patch).length === 0) return { ok: true };
     const { error } = await context.supabase
       .from("staff")
-      .update(patch)
+      .update(patch as never)
       .eq("user_id", context.userId);
     if (error) throw new Error(error.message);
     return { ok: true };

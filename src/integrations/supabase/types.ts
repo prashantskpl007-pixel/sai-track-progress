@@ -128,8 +128,12 @@ export type Database = {
           balance_amount: number | null
           created_at: string
           current_status: Database["public"]["Enums"]["registration_status"]
+          custom_fields: Json
           customer_email: string | null
           customer_name: string
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_by_name: string | null
           id: string
           last_contacted_at: string | null
           mobile_number: string
@@ -171,8 +175,12 @@ export type Database = {
           balance_amount?: number | null
           created_at?: string
           current_status?: Database["public"]["Enums"]["registration_status"]
+          custom_fields?: Json
           customer_email?: string | null
           customer_name: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_by_name?: string | null
           id?: string
           last_contacted_at?: string | null
           mobile_number: string
@@ -214,8 +222,12 @@ export type Database = {
           balance_amount?: number | null
           created_at?: string
           current_status?: Database["public"]["Enums"]["registration_status"]
+          custom_fields?: Json
           customer_email?: string | null
           customer_name?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_by_name?: string | null
           id?: string
           last_contacted_at?: string | null
           mobile_number?: string
@@ -253,6 +265,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      field_configs: {
+        Row: {
+          created_at: string
+          field_key: string
+          field_type: string
+          id: string
+          is_enabled: boolean
+          is_required: boolean
+          is_system: boolean
+          label: string
+          options: Json
+          show_in_registration: boolean
+          show_in_workflow: boolean
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          field_key: string
+          field_type?: string
+          id?: string
+          is_enabled?: boolean
+          is_required?: boolean
+          is_system?: boolean
+          label: string
+          options?: Json
+          show_in_registration?: boolean
+          show_in_workflow?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          field_key?: string
+          field_type?: string
+          id?: string
+          is_enabled?: boolean
+          is_required?: boolean
+          is_system?: boolean
+          label?: string
+          options?: Json
+          show_in_registration?: boolean
+          show_in_workflow?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       internal_notes: {
         Row: {
@@ -405,6 +465,33 @@ export type Database = {
         }
         Relationships: []
       }
+      master_verification_statuses: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       master_workflow_statuses: {
         Row: {
           created_at: string
@@ -507,6 +594,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      role_permissions: {
+        Row: {
+          can_add: boolean
+          can_delete: boolean
+          can_edit: boolean
+          can_export: boolean
+          can_view: boolean
+          created_at: string
+          id: string
+          menu_visible: boolean
+          module: string
+          role_name: string
+          updated_at: string
+        }
+        Insert: {
+          can_add?: boolean
+          can_delete?: boolean
+          can_edit?: boolean
+          can_export?: boolean
+          can_view?: boolean
+          created_at?: string
+          id?: string
+          menu_visible?: boolean
+          module: string
+          role_name: string
+          updated_at?: string
+        }
+        Update: {
+          can_add?: boolean
+          can_delete?: boolean
+          can_edit?: boolean
+          can_export?: boolean
+          can_view?: boolean
+          created_at?: string
+          id?: string
+          menu_visible?: boolean
+          module?: string
+          role_name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       staff: {
         Row: {
@@ -736,6 +865,7 @@ export type Database = {
     }
     Functions: {
       claim_first_admin: { Args: { _user_id: string }; Returns: boolean }
+      effective_role_name: { Args: { _user_id: string }; Returns: string }
       find_applications_by_mobile: {
         Args: { _mobile: string }
         Returns: {
@@ -759,6 +889,10 @@ export type Database = {
           _roles: Database["public"]["Enums"]["app_role"][]
           _user_id: string
         }
+        Returns: boolean
+      }
+      has_permission: {
+        Args: { _action: string; _module: string; _user_id: string }
         Returns: boolean
       }
       has_role: {

@@ -66,6 +66,8 @@ import {
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/use-session";
+import { usePermissions } from "@/hooks/use-permissions";
+import { UserMenu } from "@/components/UserMenu";
 import {
   createCustomer,
   updateCustomer,
@@ -162,6 +164,7 @@ const INR = (n: number | null | undefined) =>
 function AdminPanel() {
   const navigate = useNavigate();
   const { session, loading, hasBackofficeAccess } = useSession();
+  const perm = usePermissions();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [fetching, setFetching] = useState(true);
@@ -396,7 +399,7 @@ function AdminPanel() {
               <p className="font-display text-base font-semibold">Admin Panel</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             {customers.length === 0 && (
               <Button
                 variant="outline"
@@ -406,16 +409,12 @@ function AdminPanel() {
                 <Sparkles className="mr-2 h-4 w-4" /> Add sample data
               </Button>
             )}
-            <Button
-              variant="outline"
-              className="border-white/30 bg-white/5 text-primary-foreground hover:bg-white/10"
-              onClick={() => navigate({ to: "/verification" })}
-            >
-              <ShieldCheck className="mr-2 h-4 w-4" /> Verification
-            </Button>
-            <Button variant="ghost" className="text-primary-foreground hover:bg-white/10" onClick={signOut}>
-              <LogOut className="mr-2 h-4 w-4" /> Sign out
-            </Button>
+            <UserMenu
+              profile={perm.profile}
+              roleName={perm.roleName}
+              isOwner={perm.isOwner}
+              onSignOut={signOut}
+            />
           </div>
         </div>
       </header>

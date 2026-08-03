@@ -5,22 +5,33 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 const MASTER_TABLES = {
   pending: "master_pending_reasons",
   status: "master_workflow_statuses",
+  noc: "master_verification_statuses",
   role: "master_roles",
 } as const;
 
 type MasterKind = keyof typeof MASTER_TABLES;
 
 async function assertMasterAdmin(ctx: { supabase: any; userId: string }) {
-  const { data, error } = await ctx.supabase.rpc("has_any_role", {
+  const { data, error } = await ctx.supabase.rpc("has_permission", {
     _user_id: ctx.userId,
-    _roles: ["admin", "owner", "manager"],
+    _module: "master",
+    _action: "edit",
   });
   if (error) throw new Error(error.message);
-  if (!data) throw new Error("Forbidden: only Owner / Manager / Admin can change master data");
+  if (!data) throw new Error("Forbidden: you do not have permission to change master data");
+}
+
+async function assertOwner(ctx: { supabase: any; userId: string }) {
+  const { data, error } = await ctx.supabase.rpc("has_any_role", {
+    _user_id: ctx.userId,
+    _roles: ["admin", "owner"],
+  });
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Forbidden: Owner only");
 }
 
 const UpsertInput = z.object({
-  kind: z.enum(["pending", "status", "role"]),
+  kind: z.enum(["pending", "status", "noc", "role"]),
   id: z.string().uuid().optional().nullable(),
   label: z.string().trim().min(1).max(120),
   description: z.string().trim().max(300).optional().nullable(),

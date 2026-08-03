@@ -66,6 +66,8 @@ import {
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/use-session";
+import { usePermissions } from "@/hooks/use-permissions";
+import { UserMenu } from "@/components/UserMenu";
 import {
   createCustomer,
   updateCustomer,

@@ -330,6 +330,40 @@ function AdminPanel() {
     return Array.from(map.values());
   }, [staff, customers]);
 
+  // Source (agent) analytics — volume, revenue, collection
+  const sourceStats = useMemo(() => {
+    const map = new Map<string, { name: string; jobs: number; revenue: number; received: number }>();
+    customers.forEach((c: any) => {
+      if (c.deleted_at) return;
+      const key = (c.source_agent || "Direct / Walk-in") as string;
+      const row = map.get(key) ?? { name: key, jobs: 0, revenue: 0, received: 0 };
+      row.jobs += 1;
+      row.revenue += Number(c.total_amount) || 0;
+      row.received += Number(c.payment_received) || 0;
+      map.set(key, row);
+    });
+    return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
+  }, [customers]);
+
+  // Financial analytics — fees vs collected vs outstanding per month
+  const financialData = useMemo(() => {
+    const map = new Map<string, { month: string; fees: number; received: number; outstanding: number }>();
+    customers.forEach((c: any) => {
+      if (c.deleted_at) return;
+      const d = new Date(c.registration_date ?? c.created_at);
+      if (Number.isNaN(d.getTime())) return;
+      const key = d.toLocaleString("en-IN", { month: "short", year: "2-digit" });
+      const fees = Number(c.total_amount) || 0;
+      const received = Number(c.payment_received) || 0;
+      const row = map.get(key) ?? { month: key, fees: 0, received: 0, outstanding: 0 };
+      row.fees += fees;
+      row.received += received;
+      row.outstanding += Math.max(0, fees - received);
+      map.set(key, row);
+    });
+    return Array.from(map.values()).slice(-6);
+  }, [customers]);
+
   // Smart alerts
   const alerts = useMemo(() => {
     const list: { key: string; customerId: string; type: "danger" | "warn"; text: string }[] = [];
@@ -550,6 +584,59 @@ function AdminPanel() {
           
           <TabsContent value="analytics">
             <div className="grid gap-6 lg:grid-cols-2">
+              <ChartCard title="Financial performance — fees vs collected vs outstanding">
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={financialData}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                    <XAxis dataKey="month" fontSize={12} />
+                    <YAxis fontSize={12} />
+                    <Tooltip formatter={(v: any) => INR(Number(v))} />
+                    <Legend />
+                    <Bar dataKey="fees" fill="#0f2a56" name="Total fees" />
+                    <Bar dataKey="received" fill="#2e7d5b" name="Collected" />
+                    <Bar dataKey="outstanding" fill="#c8a24a" name="Outstanding" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+              <ChartCard title="Business by source (agent)">
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie data={sourceStats.map((s) => ({ name: s.name, value: s.jobs }))} dataKey="value" nameKey="name" outerRadius={90} label>
+                      {sourceStats.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </ChartCard>
+              <div className="rounded-2xl border bg-card p-6 shadow-elegant lg:col-span-2">
+                <h3 className="font-display font-semibold">Source (agent) performance</h3>
+                <div className="overflow-x-auto">
+                  <table className="mt-3 w-full text-sm">
+                    <thead className="text-left text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="py-2">Source</th><th>Jobs</th><th>Total fees</th>
+                        <th>Collected</th><th>Outstanding</th><th>Collection %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sourceStats.length === 0 ? (
+                        <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">No data yet.</td></tr>
+                      ) : sourceStats.map((s) => (
+                        <tr key={s.name} className="border-t">
+                          <td className="py-2 font-medium">{s.name}</td>
+                          <td>{s.jobs}</td>
+                          <td>{INR(s.revenue)}</td>
+                          <td className="text-success">{INR(s.received)}</td>
+                          <td className={s.revenue - s.received > 0 ? "text-destructive" : ""}>{INR(Math.max(0, s.revenue - s.received))}</td>
+                          <td>{s.revenue > 0 ? Math.round((s.received / s.revenue) * 100) : 0}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
               <ChartCard title="Peak months">
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={monthlyData}>

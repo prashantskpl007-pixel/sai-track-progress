@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { MessageSquare, Loader2, Search } from "lucide-react";
+import { MessageSquare, Loader2, Search, SlidersHorizontal, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +33,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { updateCustomer, addCustomerRemark } from "@/lib/customer-admin.functions";
+import { updateCustomer, addCustomerRemark, softDeleteCustomer } from "@/lib/customer-admin.functions";
 import { STATUS_STEPS, statusLabel, WORK_TYPES, NOC_OPTIONS } from "@/lib/status";
 import { useMasters } from "@/hooks/use-masters";
 import { useSession } from "@/hooks/use-session";
@@ -200,8 +211,14 @@ export function WorkflowDashboard({
   const [historyFor, setHistoryFor] = useState<WorkflowRow | null>(null);
   const [otherFor, setOtherFor] = useState<{ row: WorkflowRow; field: "pending" | "status" } | null>(null);
   const [remarkCounts, setRemarkCounts] = useState<Record<string, number>>({});
+  const [deleteFor, setDeleteFor] = useState<WorkflowRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const softDeleteFn = useServerFn(softDeleteCustomer);
+  const canDelete = canEditAll;
 
   const [q, setQ] = useState("");
+
   const [fDate, setFDate] = useState("");
   const [fToken, setFToken] = useState("");
   const [fSource, setFSource] = useState("all");
@@ -259,6 +276,7 @@ export function WorkflowDashboard({
   const rows = useMemo(() => {
     const query = q.trim().toLowerCase();
     return customers.filter((c) => {
+      if (c.deleted_at) return false;
       if (fDate && (c.registration_date ?? "").slice(0, 10) !== fDate) return false;
       if (fToken && !String(c.token_number ?? "").toLowerCase().includes(fToken.toLowerCase())) return false;
       if (fSource !== "all" && c.source_agent !== fSource) return false;
@@ -276,41 +294,71 @@ export function WorkflowDashboard({
     });
   }, [customers, q, fDate, fToken, fSource, fStaff, fWorkType, fPending, fStatus]);
 
+  const activeFilterCount =
+    (fDate ? 1 : 0) + (fToken ? 1 : 0) +
+    [fSource, fStaff, fWorkType, fPending, fStatus].filter((v) => v !== "all").length;
+
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 rounded-2xl border bg-card p-4 shadow-elegant md:grid-cols-4">
-        <div className="md:col-span-2">
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Search</Label>
-          <div className="relative mt-1">
+      {/* Compact search bar */}
+      <div className="rounded-2xl border bg-card p-2.5 shadow-elegant">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-48 flex-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Name, mobile, token, address..." value={q} onChange={(e) => setQ(e.target.value)} />
+            <Input
+              className="h-9 pl-9"
+              placeholder="Search name, mobile, token or address..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
           </div>
-        </div>
-        <div>
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Date</Label>
-          <Input className="mt-1" type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} />
-        </div>
-        <div>
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Token Number</Label>
-          <Input className="mt-1" placeholder="Token" value={fToken} onChange={(e) => setFToken(e.target.value)} />
-        </div>
-        <FilterSelect label="Source (Agent)" value={fSource} onChange={setFSource} options={sources.map((s) => ({ value: s, label: s }))} allLabel="All sources" />
-        <FilterSelect label="Staff" value={fStaff} onChange={setFStaff} options={staff.map((s) => ({ value: s.id, label: s.full_name }))} allLabel="All staff" />
-        <FilterSelect label="Work Type" value={fWorkType} onChange={setFWorkType} options={workTypes.map((t) => ({ value: t, label: t }))} allLabel="All work types" />
-        <FilterSelect label="Pending" value={fPending} onChange={setFPending} options={pendingOptionList.map((p) => ({ value: p, label: p }))} allLabel="All pending" />
-        <FilterSelect label="Status" value={fStatus} onChange={setFStatus} options={[...statusOptionList, ...STATUS_STEPS.map((s) => s.label)].map((s) => ({ value: s, label: s }))} allLabel="All statuses" />
-        <div className="flex items-end">
           <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => {
-              setQ(""); setFDate(""); setFToken(""); setFSource("all"); setFStaff("all");
-              setFWorkType("all"); setFPending("all"); setFStatus("all");
-            }}
+            variant={showFilters ? "default" : "outline"}
+            size="sm"
+            className="h-9"
+            onClick={() => setShowFilters((s) => !s)}
           >
-            Clear filters
+            <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="ml-1.5 rounded-full bg-gold px-1.5 text-[10px] font-bold text-gold-foreground">
+                {activeFilterCount}
+              </span>
+            )}
           </Button>
+          {(activeFilterCount > 0 || q) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9"
+              onClick={() => {
+                setQ(""); setFDate(""); setFToken(""); setFSource("all"); setFStaff("all");
+                setFWorkType("all"); setFPending("all"); setFStatus("all");
+              }}
+            >
+              Clear
+            </Button>
+          )}
+          <span className="ml-auto text-xs text-muted-foreground">{rows.length} records</span>
         </div>
+
+        {showFilters && (
+          <div className="mt-3 grid gap-3 border-t pt-3 md:grid-cols-4">
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Date</Label>
+              <Input className="mt-1" type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Token Number</Label>
+              <Input className="mt-1" placeholder="Token" value={fToken} onChange={(e) => setFToken(e.target.value)} />
+            </div>
+            <FilterSelect label="Source (Agent)" value={fSource} onChange={setFSource} options={sources.map((s) => ({ value: s, label: s }))} allLabel="All sources" />
+            <FilterSelect label="Staff" value={fStaff} onChange={setFStaff} options={staff.map((s) => ({ value: s.id, label: s.full_name }))} allLabel="All staff" />
+            <FilterSelect label="Work Type" value={fWorkType} onChange={setFWorkType} options={workTypes.map((t) => ({ value: t, label: t }))} allLabel="All work types" />
+            <FilterSelect label="Pending" value={fPending} onChange={setFPending} options={pendingOptionList.map((p) => ({ value: p, label: p }))} allLabel="All pending" />
+            <FilterSelect label="Status" value={fStatus} onChange={setFStatus} options={[...statusOptionList, ...STATUS_STEPS.map((s) => s.label)].map((s) => ({ value: s, label: s }))} allLabel="All statuses" />
+          </div>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-2xl border bg-card shadow-elegant">
@@ -329,11 +377,13 @@ export function WorkflowDashboard({
                 <th className="px-3 py-3">Pending</th>
                 <th className="px-3 py-3">Status</th>
                 <th className="px-3 py-3">Remarks</th>
+                {canDelete && <th className="px-3 py-3 text-right">Delete</th>}
               </tr>
             </thead>
+
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={11} className="py-10 text-center text-muted-foreground">No records match the current filters.</td></tr>
+                <tr><td colSpan={canDelete ? 12 : 11} className="py-10 text-center text-muted-foreground">No records match the current filters.</td></tr>
               ) : (
                 rows.map((c) => {
                   const fees = Number(c.total_amount) || 0;
@@ -408,7 +458,20 @@ export function WorkflowDashboard({
                           </Button>
                         </div>
                       </td>
+                      {canDelete && (
+                        <td className="px-3 py-2 text-right">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Delete record"
+                            onClick={() => setDeleteFor(c)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </td>
+                      )}
                     </tr>
+
                   );
                 })
               )}
@@ -416,6 +479,44 @@ export function WorkflowDashboard({
           </table>
         </div>
       </div>
+
+      <AlertDialog open={Boolean(deleteFor)} onOpenChange={(o) => !o && setDeleteFor(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this record?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteFor
+                ? `"${deleteFor.customer_name}" (Token ${deleteFor.token_number ?? "—"}) will be removed from the dashboard. The record is archived, not erased, and can be restored by the owner.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!deleteFor) return;
+                setDeleting(true);
+                try {
+                  await softDeleteFn({ data: { id: deleteFor.id } });
+                  toast.success("Record deleted");
+                  setDeleteFor(null);
+                  await onChanged();
+                } catch (err: any) {
+                  toast.error(err.message ?? "Could not delete");
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {historyFor && (
         <PaymentHistoryDialog customer={historyFor} onClose={() => setHistoryFor(null)} />

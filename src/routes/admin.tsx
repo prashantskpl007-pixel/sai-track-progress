@@ -330,6 +330,40 @@ function AdminPanel() {
     return Array.from(map.values());
   }, [staff, customers]);
 
+  // Source (agent) analytics — volume, revenue, collection
+  const sourceStats = useMemo(() => {
+    const map = new Map<string, { name: string; jobs: number; revenue: number; received: number }>();
+    customers.forEach((c: any) => {
+      if (c.deleted_at) return;
+      const key = (c.source_agent || "Direct / Walk-in") as string;
+      const row = map.get(key) ?? { name: key, jobs: 0, revenue: 0, received: 0 };
+      row.jobs += 1;
+      row.revenue += Number(c.total_amount) || 0;
+      row.received += Number(c.payment_received) || 0;
+      map.set(key, row);
+    });
+    return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
+  }, [customers]);
+
+  // Financial analytics — fees vs collected vs outstanding per month
+  const financialData = useMemo(() => {
+    const map = new Map<string, { month: string; fees: number; received: number; outstanding: number }>();
+    customers.forEach((c: any) => {
+      if (c.deleted_at) return;
+      const d = new Date(c.registration_date ?? c.created_at);
+      if (Number.isNaN(d.getTime())) return;
+      const key = d.toLocaleString("en-IN", { month: "short", year: "2-digit" });
+      const fees = Number(c.total_amount) || 0;
+      const received = Number(c.payment_received) || 0;
+      const row = map.get(key) ?? { month: key, fees: 0, received: 0, outstanding: 0 };
+      row.fees += fees;
+      row.received += received;
+      row.outstanding += Math.max(0, fees - received);
+      map.set(key, row);
+    });
+    return Array.from(map.values()).slice(-6);
+  }, [customers]);
+
   // Smart alerts
   const alerts = useMemo(() => {
     const list: { key: string; customerId: string; type: "danger" | "warn"; text: string }[] = [];
@@ -424,17 +458,10 @@ function AdminPanel() {
           <TabsList className="mb-6 flex w-full flex-wrap justify-start gap-1 bg-secondary p-1">
             <TabsTrigger value="workflow"><StickyNote className="mr-1.5 h-4 w-4" />Workflow</TabsTrigger>
             <TabsTrigger value="overview"><BarChart3 className="mr-1.5 h-4 w-4" />Overview</TabsTrigger>
-            <TabsTrigger value="customers"><Users className="mr-1.5 h-4 w-4" />Customers</TabsTrigger>
+            
             <TabsTrigger value="master"><UserCog className="mr-1.5 h-4 w-4" />Master</TabsTrigger>
-            <TabsTrigger value="alerts">
-              <AlertTriangle className="mr-1.5 h-4 w-4" />Alerts
-              {alerts.length > 0 && (
-                <span className="ml-1.5 rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
-                  {alerts.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="verification"><ShieldCheck className="mr-1.5 h-4 w-4" />Verification</TabsTrigger>
+            
+            
             <TabsTrigger value="analytics"><BarChart3 className="mr-1.5 h-4 w-4" />Analytics</TabsTrigger>
           </TabsList>
 
@@ -549,214 +576,67 @@ function AdminPanel() {
             </div>
           </TabsContent>
 
-          {/* ===== CUSTOMERS ===== */}
-          <TabsContent value="customers">
-            <div className="flex flex-wrap items-end gap-3 rounded-2xl border bg-card p-4 shadow-elegant">
-              <div className="min-w-56 flex-1">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Search</Label>
-                <div className="relative mt-1">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Name, mobile, or SE0001..."
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-              <div className="w-52">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Status</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All statuses</SelectItem>
-                    {STATUS_STEPS.map((s) => (
-                      <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="w-52">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Type</Label>
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All types</SelectItem>
-                    {uniqueTypes.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                <DialogTrigger asChild>
-                  <Button size="lg" className="bg-gold-gradient text-gold-foreground shadow-gold">
-                    <Plus className="mr-2 h-4 w-4" /> New Registration
-                  </Button>
-                </DialogTrigger>
-                <CustomerFormDialog
-                  staff={staff}
-                  partners={verificationPartners}
-                  onSubmit={async (values) => {
-                    try {
-                      await createFn({ data: values });
-                      toast.success("Customer created & verification partner assigned");
-                      setCreateOpen(false);
-                      await load();
-                    } catch (e: any) {
-                      toast.error(e.message);
-                    }
-                  }}
-                />
-              </Dialog>
-            </div>
-
-            <div className="mt-6 overflow-hidden rounded-2xl border bg-card shadow-elegant">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-secondary text-left text-xs uppercase tracking-wider text-muted-foreground">
-                    <tr>
-                      <th className="px-4 py-3">App #</th>
-                      <th className="px-4 py-3">Customer</th>
-                      <th className="px-4 py-3">Mobile</th>
-                      <th className="px-4 py-3">Type</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Assigned</th>
-                      <th className="px-4 py-3">Balance</th>
-                      <th className="px-4 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fetching ? (
-                      <tr><td colSpan={8} className="py-10 text-center text-muted-foreground">Loading...</td></tr>
-                    ) : filtered.length === 0 ? (
-                      <tr><td colSpan={8} className="py-10 text-center text-muted-foreground">
-                        No customers yet. Click "New Registration" or "Add sample data".
-                      </td></tr>
-                    ) : (
-                      filtered.map((c) => {
-                        const s = staff.find((x) => x.id === c.assigned_staff_id);
-                        return (
-                          <tr key={c.id} className="border-t hover:bg-muted/40">
-                            <td className="px-4 py-3 font-mono font-semibold">{c.application_number}</td>
-                            <td className="px-4 py-3">{c.customer_name}</td>
-                            <td className="px-4 py-3">{c.mobile_number}</td>
-                            <td className="px-4 py-3">{c.agreement_type}</td>
-                            <td className="px-4 py-3"><Badge variant="outline">{statusLabel(c.current_status)}</Badge></td>
-                            <td className="px-4 py-3 text-xs text-muted-foreground">{s?.full_name ?? "—"}</td>
-                            <td className="px-4 py-3">
-                              <span className={(c.balance_amount ?? 0) > 0 ? "text-destructive font-semibold" : "text-success"}>
-                                {INR(c.balance_amount)}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <Button size="sm" variant="ghost" title="KYC Documents" onClick={() => setKycFor(c)}>
-                                <FileText className="h-4 w-4" />
-                              </Button>
-                              <Button size="sm" variant="ghost" title="Edit" onClick={() => setEditing(c)}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={async () => {
-                                  if (!confirm(`Delete ${c.application_number}?`)) return;
-                                  try {
-                                    await deleteFn({ data: { id: c.id } });
-                                    toast.success("Deleted");
-                                    await load();
-                                  } catch (e: any) {
-                                    toast.error(e.message);
-                                  }
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* ===== STAFF ===== */}
+          
           <TabsContent value="master">
             <MasterModule staff={staff} onStaffChanged={load} />
           </TabsContent>
 
-          {/* ===== ALERTS ===== */}
-          <TabsContent value="alerts">
-            <div className="rounded-2xl border bg-card p-6 shadow-elegant">
-              <h2 className="font-display text-lg font-semibold">Smart Alerts</h2>
-              <p className="text-sm text-muted-foreground">Missed appointments, pending payments, and stale files.</p>
-              <div className="mt-4 space-y-2">
-                {alerts.length === 0 ? (
-                  <p className="py-8 text-center text-muted-foreground">All clear — no active alerts.</p>
-                ) : (
-                  alerts.map((a) => (
-                    <div
-                      key={a.key}
-                      className={`flex items-start justify-between gap-3 rounded-lg border p-3 ${
-                        a.type === "danger" ? "border-destructive/40 bg-destructive/5" : "border-gold/40 bg-gold/5"
-                      }`}
-                    >
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle className={`mt-0.5 h-4 w-4 ${a.type === "danger" ? "text-destructive" : "text-gold"}`} />
-                        <p className="text-sm">{a.text}</p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={async () => {
-                          try {
-                            await resolveAlertFn({ data: { alertKey: a.key, customerId: a.customerId } });
-                            toast.success("Marked resolved");
-                          } catch (e: any) {
-                            toast.error(e.message);
-                          }
-                        }}
-                      >
-                        Resolve
-                      </Button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* ===== VERIFICATION CONTROL CENTER ===== */}
-          <TabsContent value="verification">
-            <VerificationControlCenter
-              cases={verificationCases}
-              customers={customers}
-              staff={staff}
-              partners={verificationPartners}
-              onAssign={async (caseId, partner) => {
-                try {
-                  await assignCaseFn({
-                    data: {
-                      caseId,
-                      partnerUserId: partner.user_id,
-                      partnerName: partner.full_name,
-                    },
-                  });
-                  toast.success(`Assigned to ${partner.full_name}`);
-                  await load();
-                } catch (e: any) {
-                  toast.error(e.message);
-                }
-              }}
-            />
-          </TabsContent>
-
-          {/* ===== ANALYTICS ===== */}
+          
           <TabsContent value="analytics">
             <div className="grid gap-6 lg:grid-cols-2">
+              <ChartCard title="Financial performance — fees vs collected vs outstanding">
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={financialData}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                    <XAxis dataKey="month" fontSize={12} />
+                    <YAxis fontSize={12} />
+                    <Tooltip formatter={(v: any) => INR(Number(v))} />
+                    <Legend />
+                    <Bar dataKey="fees" fill="#0f2a56" name="Total fees" />
+                    <Bar dataKey="received" fill="#2e7d5b" name="Collected" />
+                    <Bar dataKey="outstanding" fill="#c8a24a" name="Outstanding" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+              <ChartCard title="Business by source (agent)">
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie data={sourceStats.map((s) => ({ name: s.name, value: s.jobs }))} dataKey="value" nameKey="name" outerRadius={90} label>
+                      {sourceStats.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </ChartCard>
+              <div className="rounded-2xl border bg-card p-6 shadow-elegant lg:col-span-2">
+                <h3 className="font-display font-semibold">Source (agent) performance</h3>
+                <div className="overflow-x-auto">
+                  <table className="mt-3 w-full text-sm">
+                    <thead className="text-left text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="py-2">Source</th><th>Jobs</th><th>Total fees</th>
+                        <th>Collected</th><th>Outstanding</th><th>Collection %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sourceStats.length === 0 ? (
+                        <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">No data yet.</td></tr>
+                      ) : sourceStats.map((s) => (
+                        <tr key={s.name} className="border-t">
+                          <td className="py-2 font-medium">{s.name}</td>
+                          <td>{s.jobs}</td>
+                          <td>{INR(s.revenue)}</td>
+                          <td className="text-success">{INR(s.received)}</td>
+                          <td className={s.revenue - s.received > 0 ? "text-destructive" : ""}>{INR(Math.max(0, s.revenue - s.received))}</td>
+                          <td>{s.revenue > 0 ? Math.round((s.received / s.revenue) * 100) : 0}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
               <ChartCard title="Peak months">
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={monthlyData}>

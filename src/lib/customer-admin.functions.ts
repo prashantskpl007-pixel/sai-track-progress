@@ -494,3 +494,33 @@ export const addCustomerRemark = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return row;
   });
+
+/** Soft delete a workflow record (kept in DB, hidden from lists) */
+export const softDeleteCustomer = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { id: string }) => z.object({ id: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { data: allowed } = await context.supabase.rpc("has_permission", {
+      _user_id: context.userId,
+      _module: "workflow",
+      _action: "delete",
+    });
+    if (!allowed) throw new Error("You do not have permission to delete records");
+
+    const { data: me } = await context.supabase
+      .from("staff")
+      .select("full_name")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    const { error } = await context.supabase
+      .from("customers")
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: context.userId,
+        deleted_by_name: me?.full_name ?? "Unknown user",
+      })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

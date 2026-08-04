@@ -441,7 +441,20 @@ export function WorkflowDashboard({
                           </Button>
                         </div>
                       </td>
+                      {canDelete && (
+                        <td className="px-3 py-2 text-right">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Delete record"
+                            onClick={() => setDeleteFor(c)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </td>
+                      )}
                     </tr>
+
                   );
                 })
               )}

@@ -30,6 +30,8 @@ import {
   resetStaffPassword,
 } from "@/lib/staff-admin.functions";
 import { useMasters, notifyMastersChanged, type MasterItem, type MasterRole } from "@/hooks/use-masters";
+import { FieldConfigManager } from "@/components/FieldConfigManager";
+import { PermissionsManager } from "@/components/PermissionsManager";
 
 type Staff = Record<string, any>;
 
@@ -45,6 +47,9 @@ export function MasterModule({
       <TabsList className="mb-6 flex w-full flex-wrap justify-start gap-1 bg-secondary p-1">
         <TabsTrigger value="pending">Pending Reasons</TabsTrigger>
         <TabsTrigger value="status">Workflow Status</TabsTrigger>
+        <TabsTrigger value="noc">Verification / NOC</TabsTrigger>
+        <TabsTrigger value="fields">Field Configuration</TabsTrigger>
+        <TabsTrigger value="permissions">Role Permissions</TabsTrigger>
         <TabsTrigger value="staff">Staff Management</TabsTrigger>
         <TabsTrigger value="roles">Role Management</TabsTrigger>
       </TabsList>
@@ -53,6 +58,15 @@ export function MasterModule({
       </TabsContent>
       <TabsContent value="status">
         <SimpleMasterList kind="status" title="Workflow Status" />
+      </TabsContent>
+      <TabsContent value="noc">
+        <SimpleMasterList kind="noc" title="Verification / NOC Status" />
+      </TabsContent>
+      <TabsContent value="fields">
+        <FieldConfigManager />
+      </TabsContent>
+      <TabsContent value="permissions">
+        <PermissionsManager />
       </TabsContent>
       <TabsContent value="staff">
         <StaffManager staff={staff} onChanged={onStaffChanged} />
@@ -66,9 +80,11 @@ export function MasterModule({
 
 /* ---------------- Pending / Status masters ---------------- */
 
-function SimpleMasterList({ kind, title }: { kind: "pending" | "status"; title: string }) {
-  const { pendingReasons, statuses, reload } = useMasters();
-  const items: MasterItem[] = kind === "pending" ? pendingReasons : statuses;
+function SimpleMasterList({ kind, title }: { kind: "pending" | "status" | "noc"; title: string }) {
+  const { pendingReasons, statuses, nocStatuses, reload } = useMasters();
+  const items: MasterItem[] =
+    kind === "pending" ? pendingReasons : kind === "status" ? statuses : nocStatuses;
+
   const upsertFn = useServerFn(upsertMasterItem);
   const deleteFn = useServerFn(deleteMasterItem);
 

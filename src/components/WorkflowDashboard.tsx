@@ -383,7 +383,7 @@ export function WorkflowDashboard({
 
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={11} className="py-10 text-center text-muted-foreground">No records match the current filters.</td></tr>
+                <tr><td colSpan={canDelete ? 12 : 11} className="py-10 text-center text-muted-foreground">No records match the current filters.</td></tr>
               ) : (
                 rows.map((c) => {
                   const fees = Number(c.total_amount) || 0;

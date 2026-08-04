@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { updateCustomer, addCustomerRemark } from "@/lib/customer-admin.functions";
+import { updateCustomer, addCustomerRemark, softDeleteCustomer } from "@/lib/customer-admin.functions";
 import { STATUS_STEPS, statusLabel, WORK_TYPES, NOC_OPTIONS } from "@/lib/status";
 import { useMasters } from "@/hooks/use-masters";
 import { useSession } from "@/hooks/use-session";
@@ -479,6 +479,44 @@ export function WorkflowDashboard({
           </table>
         </div>
       </div>
+
+      <AlertDialog open={Boolean(deleteFor)} onOpenChange={(o) => !o && setDeleteFor(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this record?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteFor
+                ? `"${deleteFor.customer_name}" (Token ${deleteFor.token_number ?? "—"}) will be removed from the dashboard. The record is archived, not erased, and can be restored by the owner.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!deleteFor) return;
+                setDeleting(true);
+                try {
+                  await softDeleteFn({ data: { id: deleteFor.id } });
+                  toast.success("Record deleted");
+                  setDeleteFor(null);
+                  await onChanged();
+                } catch (err: any) {
+                  toast.error(err.message ?? "Could not delete");
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {historyFor && (
         <PaymentHistoryDialog customer={historyFor} onClose={() => setHistoryFor(null)} />

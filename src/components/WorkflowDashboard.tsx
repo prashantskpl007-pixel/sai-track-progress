@@ -211,8 +211,14 @@ export function WorkflowDashboard({
   const [historyFor, setHistoryFor] = useState<WorkflowRow | null>(null);
   const [otherFor, setOtherFor] = useState<{ row: WorkflowRow; field: "pending" | "status" } | null>(null);
   const [remarkCounts, setRemarkCounts] = useState<Record<string, number>>({});
+  const [deleteFor, setDeleteFor] = useState<WorkflowRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const softDeleteFn = useServerFn(softDeleteCustomer);
+  const canDelete = canEditAll;
 
   const [q, setQ] = useState("");
+
   const [fDate, setFDate] = useState("");
   const [fToken, setFToken] = useState("");
   const [fSource, setFSource] = useState("all");

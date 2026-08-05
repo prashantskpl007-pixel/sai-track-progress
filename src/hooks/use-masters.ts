@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { FieldConfig } from "@/lib/permissions";
+import type { FieldConfig, FieldOption } from "@/lib/field-config";
 
 export type MasterItem = { id: string; label: string; is_active: boolean; sort_order: number };
 export type MasterRole = {
@@ -18,24 +18,17 @@ export function notifyMastersChanged() {
 }
 
 export function useMasters() {
-  const [pendingReasons, setPendingReasons] = useState<MasterItem[]>([]);
-  const [statuses, setStatuses] = useState<MasterItem[]>([]);
-  const [nocStatuses, setNocStatuses] = useState<MasterItem[]>([]);
   const [roles, setRoles] = useState<MasterRole[]>([]);
   const [fields, setFields] = useState<FieldConfig[]>([]);
+  const [options, setOptions] = useState<FieldOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    const [p, s, n, r, f] = await Promise.all([
-      supabase.from("master_pending_reasons").select("*").order("sort_order").order("label"),
-      supabase.from("master_workflow_statuses").select("*").order("sort_order").order("label"),
-      supabase.from("master_verification_statuses").select("*").order("sort_order").order("label"),
+    const [r, f, o] = await Promise.all([
       supabase.from("master_roles").select("*").order("sort_order").order("name"),
       supabase.from("field_configs").select("*").order("sort_order"),
+      (supabase.from("field_options" as any) as any).select("*").order("sort_order"),
     ]);
-    setPendingReasons((p.data as MasterItem[]) ?? []);
-    setStatuses((s.data as MasterItem[]) ?? []);
-    setNocStatuses((n.data as MasterItem[]) ?? []);
     setRoles((r.data as MasterRole[]) ?? []);
     setFields(
       ((f.data as any[]) ?? []).map((x) => ({
@@ -43,6 +36,7 @@ export function useMasters() {
         options: Array.isArray(x.options) ? x.options : [],
       })) as FieldConfig[],
     );
+    setOptions((o.data as FieldOption[]) ?? []);
     setLoading(false);
   }, []);
 
@@ -50,8 +44,45 @@ export function useMasters() {
     reload();
     const handler = () => reload();
     window.addEventListener(EVENT, handler);
-    return () => window.removeEventListener(EVENT, handler);
+
+    // Live sync — configuration changes appear everywhere without a refresh.
+    const channel = supabase
+      .channel("field-config-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "field_configs" }, handler)
+      .on("postgres_changes", { event: "*", schema: "public", table: "field_options" }, handler)
+      .subscribe();
+
+    return () => {
+      window.removeEventListener(EVENT, handler);
+      supabase.removeChannel(channel);
+    };
   }, [reload]);
 
-  return { pendingReasons, statuses, nocStatuses, roles, fields, loading, reload };
+  /** Active choices for a field, plus any historical value so old records stay readable. */
+  const optionsFor = useCallback(
+    (fieldKey: string, includeValues: (string | null | undefined)[] = []) => {
+      const field = fields.find((f) => f.field_key === fieldKey);
+      const list = field
+        ? options
+            .filter((o) => o.field_config_id === field.id && o.is_active)
+            .sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label))
+            .map((o) => o.label)
+        : [];
+      const extras = includeValues.filter(
+        (v): v is string => Boolean(v) && !list.includes(v as string),
+      );
+      return [...list, ...extras];
+    },
+    [fields, options],
+  );
+
+  const allOptionsFor = useCallback(
+    (fieldConfigId: string) =>
+      options
+        .filter((o) => o.field_config_id === fieldConfigId)
+        .sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label)),
+    [options],
+  );
+
+  return { roles, fields, options, optionsFor, allOptionsFor, loading, reload };
 }

@@ -29,7 +29,7 @@ import {
   deleteStaff,
   resetStaffPassword,
 } from "@/lib/staff-admin.functions";
-import { useMasters, notifyMastersChanged, type MasterItem, type MasterRole } from "@/hooks/use-masters";
+import { useMasters, notifyMastersChanged, type MasterRole } from "@/hooks/use-masters";
 import { FieldConfigManager } from "@/components/FieldConfigManager";
 import { PermissionsManager } from "@/components/PermissionsManager";
 
@@ -43,25 +43,13 @@ export function MasterModule({
   onStaffChanged: () => Promise<void> | void;
 }) {
   return (
-    <Tabs defaultValue="pending" className="w-full">
+    <Tabs defaultValue="fields" className="w-full">
       <TabsList className="mb-6 flex w-full flex-wrap justify-start gap-1 bg-secondary p-1">
-        <TabsTrigger value="pending">Pending Reasons</TabsTrigger>
-        <TabsTrigger value="status">Workflow Status</TabsTrigger>
-        <TabsTrigger value="noc">Verification / NOC</TabsTrigger>
         <TabsTrigger value="fields">Field Configuration</TabsTrigger>
         <TabsTrigger value="permissions">Role Permissions</TabsTrigger>
         <TabsTrigger value="staff">Staff Management</TabsTrigger>
         <TabsTrigger value="roles">Role Management</TabsTrigger>
       </TabsList>
-      <TabsContent value="pending">
-        <SimpleMasterList kind="pending" title="Pending Reasons" />
-      </TabsContent>
-      <TabsContent value="status">
-        <SimpleMasterList kind="status" title="Workflow Status" />
-      </TabsContent>
-      <TabsContent value="noc">
-        <SimpleMasterList kind="noc" title="Verification / NOC Status" />
-      </TabsContent>
       <TabsContent value="fields">
         <FieldConfigManager />
       </TabsContent>
@@ -75,128 +63,6 @@ export function MasterModule({
         <RoleManager />
       </TabsContent>
     </Tabs>
-  );
-}
-
-/* ---------------- Pending / Status masters ---------------- */
-
-function SimpleMasterList({ kind, title }: { kind: "pending" | "status" | "noc"; title: string }) {
-  const { pendingReasons, statuses, nocStatuses, reload } = useMasters();
-  const items: MasterItem[] =
-    kind === "pending" ? pendingReasons : kind === "status" ? statuses : nocStatuses;
-
-  const upsertFn = useServerFn(upsertMasterItem);
-  const deleteFn = useServerFn(deleteMasterItem);
-
-  const [label, setLabel] = useState("");
-  const [editing, setEditing] = useState<MasterItem | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function save(value: string, id?: string) {
-    if (!value.trim()) return toast.error("Enter a name");
-    setBusy(true);
-    try {
-      await upsertFn({ data: { kind, id: id ?? null, label: value.trim() } });
-      setLabel("");
-      setEditing(null);
-      await reload();
-      notifyMastersChanged();
-      toast.success("Saved");
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove(item: MasterItem) {
-    if (!confirm(`Delete "${item.label}"?`)) return;
-    try {
-      await deleteFn({ data: { kind, id: item.id } });
-      await reload();
-      notifyMastersChanged();
-      toast.success("Deleted");
-    } catch (e: any) {
-      toast.error(e.message);
-    }
-  }
-
-  async function toggle(item: MasterItem, active: boolean) {
-    try {
-      await upsertFn({ data: { kind, id: item.id, label: item.label, isActive: active } });
-      await reload();
-      notifyMastersChanged();
-    } catch (e: any) {
-      toast.error(e.message);
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-2xl border bg-card p-4 shadow-elegant">
-        <div className="min-w-56 flex-1">
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Add {title}</Label>
-          <Input
-            className="mt-1"
-            value={label}
-            placeholder={kind === "pending" ? "e.g. Documents Pending" : "e.g. Draft Ready"}
-            onChange={(e) => setLabel(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && save(label)}
-          />
-        </div>
-        <Button
-          disabled={busy}
-          className="bg-gold-gradient text-gold-foreground shadow-gold"
-          onClick={() => save(label)}
-        >
-          {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-          Add
-        </Button>
-      </div>
-
-      <div className="overflow-hidden rounded-2xl border bg-card shadow-elegant">
-        <table className="w-full text-sm">
-          <thead className="bg-secondary text-left text-xs uppercase tracking-wider text-muted-foreground">
-            <tr>
-              <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Active</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 ? (
-              <tr><td colSpan={3} className="py-10 text-center text-muted-foreground">Nothing here yet.</td></tr>
-            ) : (
-              items.map((it) => (
-                <tr key={it.id} className="border-t">
-                  <td className="px-4 py-2 font-medium">{it.label}</td>
-                  <td className="px-4 py-2">
-                    <Switch checked={it.is_active} onCheckedChange={(v) => toggle(it, v)} />
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <Button size="sm" variant="outline" className="mr-2" onClick={() => setEditing(it)}>
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => remove(it)}>
-                      <Trash2 className="h-3 w-3 text-destructive" />
-                    </Button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {editing && (
-        <RenameDialog
-          initial={editing.label}
-          title={`Edit ${title}`}
-          onClose={() => setEditing(null)}
-          onSave={async (v) => { await save(v, editing.id); }}
-        />
-      )}
-    </div>
   );
 }
 

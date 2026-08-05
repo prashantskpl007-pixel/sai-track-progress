@@ -71,16 +71,4 @@ export const FIELD_TYPES = [
   { value: "file", label: "File Upload" },
 ] as const;
 
-export type FieldConfig = {
-  id: string;
-  field_key: string;
-  label: string;
-  field_type: string;
-  options: string[];
-  is_system: boolean;
-  is_enabled: boolean;
-  is_required: boolean;
-  show_in_registration: boolean;
-  show_in_workflow: boolean;
-  sort_order: number;
-};
+export type { FieldConfig } from "./field-config";

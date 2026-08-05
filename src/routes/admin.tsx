@@ -1100,7 +1100,9 @@ function CustomerFormDialog({
   staff: Staff[];
   partners: any[];
 }) {
-  const { pendingReasons: masterPending, statuses: masterStatuses } = useMasters();
+  const { optionsFor } = useMasters();
+  const masterPending = optionsFor("pending_item").map((label) => ({ id: label, label, is_active: true }));
+  const masterStatuses = optionsFor("workflow_status").map((label) => ({ id: label, label, is_active: true }));
   const [values, setValues] = useState({
     registrationDate: new Date().toISOString().slice(0, 10),
     tokenNumber: "",
@@ -1220,7 +1222,7 @@ function CustomerFormDialog({
             <Select value={values.pendingItem} onValueChange={(v) => setValues({ ...values, pendingItem: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {masterPending.filter((p) => p.is_active).map((t) => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
+                {masterPending.filter((p: { is_active: boolean }) => p.is_active).map((t: { id: string; label: string }) => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
                 <SelectItem value="Other">Other</SelectItem>
               </SelectContent>
             </Select>
@@ -1237,7 +1239,7 @@ function CustomerFormDialog({
             <Select value={values.workflowStatus} onValueChange={(v) => setValues({ ...values, workflowStatus: v })}>
               <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
               <SelectContent>
-                {masterStatuses.filter((p) => p.is_active).map((t) => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
+                {masterStatuses.filter((p: { is_active: boolean }) => p.is_active).map((t: { id: string; label: string }) => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
                 <SelectItem value="Other">Other</SelectItem>
               </SelectContent>
             </Select>

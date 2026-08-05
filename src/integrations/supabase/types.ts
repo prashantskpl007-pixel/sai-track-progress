@@ -269,6 +269,7 @@ export type Database = {
       field_configs: {
         Row: {
           created_at: string
+          default_value: string | null
           field_key: string
           field_type: string
           id: string
@@ -284,6 +285,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          default_value?: string | null
           field_key: string
           field_type?: string
           id?: string
@@ -299,6 +301,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          default_value?: string | null
           field_key?: string
           field_type?: string
           id?: string
@@ -313,6 +316,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      field_options: {
+        Row: {
+          created_at: string
+          field_config_id: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          field_config_id: string
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          field_config_id?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "field_options_field_config_id_fkey"
+            columns: ["field_config_id"]
+            isOneToOne: false
+            referencedRelation: "field_configs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       internal_notes: {
         Row: {

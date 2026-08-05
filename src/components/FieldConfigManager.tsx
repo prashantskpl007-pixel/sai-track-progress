@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowDown, ArrowUp, Lock, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, List, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -26,18 +25,23 @@ import {
   upsertFieldConfig,
   deleteFieldConfig,
   reorderFieldConfigs,
+  upsertFieldOption,
+  setFieldOptionActive,
+  reorderFieldOptions,
 } from "@/lib/master.functions";
 import { useMasters, notifyMastersChanged } from "@/hooks/use-masters";
-import { FIELD_TYPES, type FieldConfig } from "@/lib/permissions";
+import { FIELD_TYPES } from "@/lib/permissions";
+import { hasOptions, type FieldConfig, type FieldOption } from "@/lib/field-config";
 
 export function FieldConfigManager() {
-  const { fields, reload } = useMasters();
+  const { fields, allOptionsFor, reload } = useMasters();
   const upsertFn = useServerFn(upsertFieldConfig);
   const deleteFn = useServerFn(deleteFieldConfig);
   const reorderFn = useServerFn(reorderFieldConfigs);
 
   const [editing, setEditing] = useState<FieldConfig | null>(null);
   const [open, setOpen] = useState(false);
+  const [optionsFor, setOptionsFor] = useState<FieldConfig | null>(null);
 
   async function refresh() {
     await reload();
@@ -97,11 +101,11 @@ export function FieldConfigManager() {
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4 shadow-elegant">
         <div>
           <h3 className="font-display text-lg font-semibold">
-            Registration &amp; Workflow Field Configuration
+            Field &amp; Dropdown Configuration
           </h3>
           <p className="text-sm text-muted-foreground">
-            Decide which fields appear on the registration form and the workflow dashboard, in
-            what order, and whether they are compulsory.
+            The single place to control every field and every dropdown value used in Registration,
+            Edit Registration and the Workflow Dashboard.
           </p>
         </div>
         <Button
@@ -185,6 +189,20 @@ export function FieldConfigManager() {
                     />
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right">
+                    {hasOptions(f) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mr-2"
+                        onClick={() => setOptionsFor(f)}
+                      >
+                        <List className="mr-1.5 h-3 w-3" />
+                        Manage Options
+                        <span className="ml-1.5 text-xs text-muted-foreground">
+                          {allOptionsFor(f.id).filter((o) => o.is_active).length}
+                        </span>
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
@@ -212,6 +230,11 @@ export function FieldConfigManager() {
         </div>
       </div>
 
+      <p className="text-xs text-muted-foreground">
+        Balance, Excess Amount, Payment Status and Collection % are system-generated from Fees and
+        Amount Received — they are always read-only and cannot be configured here.
+      </p>
+
       {open && (
         <FieldDialog
           field={editing}
@@ -223,11 +246,12 @@ export function FieldConfigManager() {
                   id: editing?.id ?? null,
                   label: v.label,
                   fieldType: v.fieldType,
-                  options: v.options,
+                  options: [],
+                  defaultValue: v.defaultValue,
                   isRequired: v.isRequired,
                   showInRegistration: v.showInRegistration,
                   showInWorkflow: v.showInWorkflow,
-                  isEnabled: true,
+                  isEnabled: editing ? editing.is_enabled : true,
                 },
               });
               setOpen(false);
@@ -237,6 +261,15 @@ export function FieldConfigManager() {
               toast.error(e.message);
             }
           }}
+        />
+      )}
+
+      {optionsFor && (
+        <ManageOptionsDialog
+          field={optionsFor}
+          options={allOptionsFor(optionsFor.id)}
+          onClose={() => setOptionsFor(null)}
+          onChanged={refresh}
         />
       )}
     </div>
@@ -253,7 +286,7 @@ function FieldDialog({
   onSave: (v: {
     label: string;
     fieldType: string;
-    options: string[];
+    defaultValue: string;
     isRequired: boolean;
     showInRegistration: boolean;
     showInWorkflow: boolean;
@@ -261,12 +294,17 @@ function FieldDialog({
 }) {
   const [label, setLabel] = useState(field?.label ?? "");
   const [fieldType, setFieldType] = useState(field?.field_type ?? "text");
-  const [optionsText, setOptionsText] = useState((field?.options ?? []).join("\n"));
+  const [defaultValue, setDefaultValue] = useState(field?.default_value ?? "");
   const [isRequired, setIsRequired] = useState(field?.is_required ?? false);
-  const [showReg, setShowReg] = useState(field?.show_in_registration ?? true);
-  const [showWf, setShowWf] = useState(field?.show_in_workflow ?? true);
-
-  const needsOptions = ["dropdown", "multiselect", "radio"].includes(fieldType);
+  const [visibility, setVisibility] = useState<"registration" | "workflow" | "both">(
+    field
+      ? field.show_in_registration && field.show_in_workflow
+        ? "both"
+        : field.show_in_workflow
+          ? "workflow"
+          : "registration"
+      : "both",
+  );
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -299,33 +337,41 @@ function FieldDialog({
             </Select>
             {field?.is_system && (
               <p className="text-xs text-muted-foreground">
-                System fields keep their type — you can still rename, reorder, hide and make them
-                mandatory.
+                System fields keep their type — you can still rename, reorder, hide, make them
+                mandatory and manage their dropdown options.
               </p>
             )}
           </div>
-          {needsOptions && (
-            <div className="space-y-2">
-              <Label>Dropdown values (one per line)</Label>
-              <Textarea
-                rows={5}
-                value={optionsText}
-                onChange={(e) => setOptionsText(e.target.value)}
-                placeholder={"Option A\nOption B\nOther"}
-              />
-            </div>
+          {hasOptions({ field_type: fieldType }) && (
+            <p className="rounded-md bg-secondary/50 p-3 text-xs text-muted-foreground">
+              Save the field, then use the <strong>Manage Options</strong> button on the list to add
+              its dropdown values.
+            </p>
           )}
+          <div className="space-y-2">
+            <Label>Default value (optional)</Label>
+            <Input
+              value={defaultValue}
+              onChange={(e) => setDefaultValue(e.target.value)}
+              placeholder="Pre-filled when a new registration is created"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Where should this field appear?</Label>
+            <Select value={visibility} onValueChange={(v) => setVisibility(v as any)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="registration">Registration form only</SelectItem>
+                <SelectItem value="workflow">Workflow dashboard only</SelectItem>
+                <SelectItem value="both">Both</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-center gap-3">
             <Switch checked={isRequired} onCheckedChange={setIsRequired} />
             <Label>Mandatory</Label>
-          </div>
-          <div className="flex items-center gap-3">
-            <Switch checked={showReg} onCheckedChange={setShowReg} />
-            <Label>Show on Registration form</Label>
-          </div>
-          <div className="flex items-center gap-3">
-            <Switch checked={showWf} onCheckedChange={setShowWf} />
-            <Label>Show on Workflow dashboard</Label>
           </div>
         </div>
         <DialogFooter>
@@ -339,17 +385,179 @@ function FieldDialog({
               onSave({
                 label: label.trim(),
                 fieldType,
-                options: optionsText
-                  .split("\n")
-                  .map((s) => s.trim())
-                  .filter(Boolean),
+                defaultValue: defaultValue.trim(),
                 isRequired,
-                showInRegistration: showReg,
-                showInWorkflow: showWf,
+                showInRegistration: visibility !== "workflow",
+                showInWorkflow: visibility !== "registration",
               })
             }
           >
             Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ManageOptionsDialog({
+  field,
+  options,
+  onClose,
+  onChanged,
+}: {
+  field: FieldConfig;
+  options: FieldOption[];
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+}) {
+  const upsertOption = useServerFn(upsertFieldOption);
+  const setActive = useServerFn(setFieldOptionActive);
+  const reorder = useServerFn(reorderFieldOptions);
+  const [newLabel, setNewLabel] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function run(fn: () => Promise<unknown>, okMessage?: string) {
+    setBusy(true);
+    try {
+      await fn();
+      await onChanged();
+      if (okMessage) toast.success(okMessage);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Manage options — {field.label}</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex gap-2">
+          <Input
+            placeholder="New option value"
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newLabel.trim()) {
+                run(
+                  () => upsertOption({ data: { fieldConfigId: field.id, label: newLabel.trim() } }),
+                  "Option added",
+                ).then(() => setNewLabel(""));
+              }
+            }}
+          />
+          <Button
+            disabled={!newLabel.trim() || busy}
+            className="bg-gold-gradient text-gold-foreground shadow-gold"
+            onClick={async () => {
+              await run(
+                () => upsertOption({ data: { fieldConfigId: field.id, label: newLabel.trim() } }),
+                "Option added",
+              );
+              setNewLabel("");
+            }}
+          >
+            <Plus className="mr-1.5 h-4 w-4" /> Add
+          </Button>
+        </div>
+
+        <div className="divide-y rounded-xl border">
+          {options.length === 0 && (
+            <p className="p-4 text-sm text-muted-foreground">No options yet.</p>
+          )}
+          {options.map((o, i) => (
+            <div key={o.id} className="flex items-center gap-2 p-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={i === 0 || busy}
+                onClick={() => {
+                  const ids = options.map((x) => x.id);
+                  [ids[i - 1], ids[i]] = [ids[i]!, ids[i - 1]!];
+                  run(() => reorder({ data: { ids: ids as string[] } }));
+                }}
+              >
+                <ArrowUp className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={i === options.length - 1 || busy}
+                onClick={() => {
+                  const ids = options.map((x) => x.id);
+                  [ids[i + 1], ids[i]] = [ids[i]!, ids[i + 1]!];
+                  run(() => reorder({ data: { ids: ids as string[] } }));
+                }}
+              >
+                <ArrowDown className="h-3.5 w-3.5" />
+              </Button>
+
+              {editingId === o.id ? (
+                <Input
+                  autoFocus
+                  className="h-8 flex-1"
+                  value={editLabel}
+                  onChange={(e) => setEditLabel(e.target.value)}
+                  onBlur={async () => {
+                    const value = editLabel.trim();
+                    setEditingId(null);
+                    if (value && value !== o.label) {
+                      await run(
+                        () => upsertOption({ data: { id: o.id, fieldConfigId: field.id, label: value } }),
+                        "Option updated",
+                      );
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                    if (e.key === "Escape") setEditingId(null);
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className={`flex-1 rounded px-2 py-1 text-left text-sm hover:bg-muted ${o.is_active ? "" : "text-muted-foreground line-through"}`}
+                  onClick={() => {
+                    setEditingId(o.id);
+                    setEditLabel(o.label);
+                  }}
+                >
+                  {o.label}
+                </button>
+              )}
+
+              <span className="text-xs text-muted-foreground">
+                {o.is_active ? "Active" : "Inactive"}
+              </span>
+              <Switch
+                checked={o.is_active}
+                disabled={busy}
+                onCheckedChange={(v) =>
+                  run(
+                    () => setActive({ data: { id: o.id, isActive: v } }),
+                    v ? "Option activated" : "Option deactivated",
+                  )
+                }
+              />
+            </div>
+          ))}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Options are never deleted. Deactivating one hides it from future dropdowns while existing
+          records keep their saved value.
+        </p>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Done
           </Button>
         </DialogFooter>
       </DialogContent>

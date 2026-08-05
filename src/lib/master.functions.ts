@@ -90,12 +90,14 @@ const FieldInput = z.object({
   label: z.string().trim().min(1).max(120),
   fieldType: z.string().trim().min(1).max(30),
   options: z.array(z.string()).optional(),
+  defaultValue: z.string().trim().max(300).optional().nullable(),
   isEnabled: z.boolean().optional(),
   isRequired: z.boolean().optional(),
   showInRegistration: z.boolean().optional(),
   showInWorkflow: z.boolean().optional(),
   sortOrder: z.number().int().optional().nullable(),
 });
+
 
 export const upsertFieldConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

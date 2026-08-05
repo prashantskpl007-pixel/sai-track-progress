@@ -662,3 +662,164 @@ function FilterSelect({
   );
 }
 
+function RemarksDialog({
+  customer,
+  onClose,
+  addRemarkFn,
+  onAdded,
+}: {
+  customer: WorkflowRow;
+  onClose: () => void;
+  addRemarkFn: (args: { data: { customerId: string; message: string } }) => Promise<any>;
+  onAdded: () => void;
+}) {
+  const [items, setItems] = useState<any[]>([]);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    load();
+  }, [customer.id]);
+
+  async function load() {
+    const { data } = await supabase
+      .from("customer_remarks")
+      .select("*")
+      .eq("customer_id", customer.id)
+      .order("created_at", { ascending: false });
+    setItems(data ?? []);
+  }
+
+  async function add() {
+    if (!text.trim()) return;
+    setBusy(true);
+    try {
+      await addRemarkFn({ data: { customerId: customer.id, message: text.trim() } });
+      setText("");
+      await load();
+      onAdded();
+      toast.success("Remark added");
+    } catch (e: any) {
+      toast.error(e.message ?? "Could not add remark");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            Remarks — {customer.token_number ? `Token ${customer.token_number}` : customer.application_number}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          <Textarea rows={3} placeholder="Write a remark..." value={text} onChange={(e) => setText(e.target.value)} />
+          <Button disabled={busy || !text.trim()} onClick={add} className="bg-navy-gradient text-primary-foreground">
+            {busy ? "Adding..." : "Add remark"}
+          </Button>
+        </div>
+
+        <div className="mt-2 space-y-3 border-t pt-3">
+          {items.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No remarks yet.</p>
+          ) : (
+            items.map((r) => {
+              const d = new Date(r.created_at);
+              return (
+                <div key={r.id} className="rounded-lg border bg-secondary/30 p-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">{r.author_name}</span>
+                    <span>{d.toLocaleDateString("en-IN")}</span>
+                    <span>{d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap text-sm">{r.message}</p>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+function OtherReasonDialog({
+  field,
+  onClose,
+  onSave,
+}: {
+  field: "pending" | "status";
+  onClose: () => void;
+  onSave: (text: string) => Promise<void>;
+}) {
+  const [text, setText] = useState("");
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{field === "pending" ? "Specify Pending Reason" : "Specify Status"}</DialogTitle>
+        </DialogHeader>
+        <Input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Required" />
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            disabled={!text.trim()}
+            onClick={() => onSave(text.trim())}
+          >
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PaymentHistoryDialog({ customer, onClose }: { customer: WorkflowRow; onClose: () => void }) {
+  const [items, setItems] = useState<any[]>([]);
+  useEffect(() => {
+    supabase
+      .from("payment_history")
+      .select("*")
+      .eq("customer_id", customer.id)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setItems(data ?? []));
+  }, [customer.id]);
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Payment history — {customer.token_number ?? customer.customer_name}</DialogTitle>
+        </DialogHeader>
+        {items.length === 0 ? (
+          <p className="py-6 text-center text-muted-foreground">No fee or payment changes recorded yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {items.map((h) => (
+              <div key={h.id} className="rounded-lg border p-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">{h.field}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(h.created_at).toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <p className="mt-1">
+                  {INR(Number(h.previous_amount))} → <span className="font-semibold">{INR(Number(h.new_amount))}</span>
+                </p>
+                <p className="text-xs text-muted-foreground">Updated by {h.updated_by_name ?? "—"}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

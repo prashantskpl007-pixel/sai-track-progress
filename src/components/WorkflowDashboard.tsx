@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { MessageSquare, Loader2, Search, SlidersHorizontal, Trash2 } from "lucide-react";
+import { History, Loader2, MessageSquare, Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,15 +34,21 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { updateCustomer, addCustomerRemark, softDeleteCustomer } from "@/lib/customer-admin.functions";
-import { STATUS_STEPS, statusLabel, WORK_TYPES, NOC_OPTIONS } from "@/lib/status";
+import { statusLabel } from "@/lib/status";
 import { useMasters } from "@/hooks/use-masters";
 import { useSession } from "@/hooks/use-session";
-import { History } from "lucide-react";
+import {
+  buildFieldPatch,
+  deriveFinance,
+  hasOptions,
+  INR,
+  legacyPaymentStatus,
+  PAYMENT_STATE_CLASS,
+  readFieldValue,
+  type FieldConfig,
+} from "@/lib/field-config";
 
 export type WorkflowRow = Record<string, any>;
-
-const INR = (n: number | null | undefined) =>
-  `₹${(n ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
 /** Color-coded badge for workflow states */
 export function WorkflowBadge({ value, kind }: { value: string | null; kind: "status" | "pending" | "noc" }) {
@@ -50,10 +56,8 @@ export function WorkflowBadge({ value, kind }: { value: string | null; kind: "st
   const v = value.toLowerCase();
   let cls = "bg-muted text-muted-foreground border-transparent";
   if (kind === "status") {
-    if (v === "agreement_ready" || v === "registration_completed" || v.includes("complet"))
-      cls = "bg-success/15 text-success border-success/30";
-    else if (v === "application_created" || v.includes("pending"))
-      cls = "bg-gold/20 text-gold-foreground border-gold/40";
+    if (v.includes("complet") || v.includes("ready")) cls = "bg-success/15 text-success border-success/30";
+    else if (v.includes("pending") || v.includes("created")) cls = "bg-gold/20 text-gold-foreground border-gold/40";
     else cls = "bg-primary/10 text-primary border-primary/30";
   } else if (kind === "pending") {
     if (v === "none" || v === "no pending") cls = "bg-success/15 text-success border-success/30";
@@ -67,8 +71,7 @@ export function WorkflowBadge({ value, kind }: { value: string | null; kind: "st
     else if (v.includes("pending")) cls = "bg-gold/20 text-gold-foreground border-gold/40";
     else cls = "bg-primary/10 text-primary border-primary/30";
   }
-  const label = kind === "status" ? statusLabel(value as any) : value;
-  return <Badge className={`whitespace-nowrap border ${cls}`}>{label}</Badge>;
+  return <Badge className={`whitespace-nowrap border ${cls}`}>{value}</Badge>;
 }
 
 /** Inline-editable text / number cell — saves on blur or Enter */
@@ -81,7 +84,7 @@ function EditableCell({
   onSave,
 }: {
   value: string | number | null;
-  type?: "text" | "number" | "date";
+  type?: "text" | "number" | "date" | "datetime-local" | "email" | "tel";
   className?: string;
   placeholder?: string;
   disabled?: boolean;
@@ -163,6 +166,10 @@ function SelectCell({
   );
 }
 
+type Column =
+  | { kind: "field"; key: string; label: string; field: FieldConfig }
+  | { kind: "derived"; key: string; label: string };
+
 export function WorkflowDashboard({
   customers,
   staff,
@@ -174,7 +181,8 @@ export function WorkflowDashboard({
 }) {
   const updateFn = useServerFn(updateCustomer);
   const addRemarkFn = useServerFn(addCustomerRemark);
-  const { pendingReasons, statuses } = useMasters();
+  const softDeleteFn = useServerFn(softDeleteCustomer);
+  const { fields, optionsFor } = useMasters();
   const { isAdmin, isManager, isStaff, isViewer } = useSession();
   const [myStaffId, setMyStaffId] = useState<string | null>(null);
 
@@ -191,41 +199,56 @@ export function WorkflowDashboard({
   }, []);
 
   const canEditAll = isAdmin || isManager;
+  const canDelete = canEditAll;
   function canEdit(row: WorkflowRow) {
-    if (isViewer && !canEditAll && !isStaff) return false;
     if (canEditAll) return true;
+    if (isViewer) return false;
     if (isStaff) return Boolean(myStaffId) && row.assigned_staff_id === myStaffId;
     return false;
   }
 
-  const pendingOptionList = [
-    ...pendingReasons.filter((p) => p.is_active).map((p) => p.label),
-    "Other",
-  ];
-  const statusOptionList = [
-    ...statuses.filter((s) => s.is_active).map((s) => s.label),
-    "Other",
-  ];
+  /* -------- Columns are generated entirely from Field Configuration -------- */
+  const columns = useMemo<Column[]>(() => {
+    const visible = fields
+      .filter((f) => f.is_enabled && f.show_in_workflow && f.field_key !== "balance_amount")
+      .sort((a, b) => a.sort_order - b.sort_order);
+    const derived: Column[] = [
+      { kind: "derived", key: "balance_amount", label: "Balance" },
+      { kind: "derived", key: "excess_amount", label: "Excess Amount" },
+      { kind: "derived", key: "payment_status_calc", label: "Payment Status" },
+      { kind: "derived", key: "collection_pct", label: "Collection %" },
+    ];
+    const cols: Column[] = [];
+    let inserted = false;
+    visible.forEach((f) => {
+      cols.push({ kind: "field", key: f.field_key, label: f.label, field: f });
+      if (f.field_key === "payment_received") {
+        cols.push(...derived);
+        inserted = true;
+      }
+    });
+    if (!inserted) cols.push(...derived);
+    return cols;
+  }, [fields]);
+
+  const dropdownFilterFields = useMemo(
+    () => fields.filter((f) => f.is_enabled && f.show_in_workflow && hasOptions(f)),
+    [fields],
+  );
 
   const [remarksFor, setRemarksFor] = useState<WorkflowRow | null>(null);
   const [historyFor, setHistoryFor] = useState<WorkflowRow | null>(null);
-  const [otherFor, setOtherFor] = useState<{ row: WorkflowRow; field: "pending" | "status" } | null>(null);
   const [remarkCounts, setRemarkCounts] = useState<Record<string, number>>({});
   const [deleteFor, setDeleteFor] = useState<WorkflowRow | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const softDeleteFn = useServerFn(softDeleteCustomer);
-  const canDelete = canEditAll;
 
   const [q, setQ] = useState("");
-
-  const [fDate, setFDate] = useState("");
-  const [fToken, setFToken] = useState("");
-  const [fSource, setFSource] = useState("all");
+  const [fFrom, setFFrom] = useState("");
+  const [fTo, setFTo] = useState("");
   const [fStaff, setFStaff] = useState("all");
-  const [fWorkType, setFWorkType] = useState("all");
-  const [fPending, setFPending] = useState("all");
-  const [fStatus, setFStatus] = useState("all");
+  const [fPayment, setFPayment] = useState("all");
+  const [fDropdowns, setFDropdowns] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadCounts();
@@ -250,40 +273,48 @@ export function WorkflowDashboard({
     }
   }
 
-  async function saveFees(row: WorkflowRow, fees: number) {
-    const received = Number(row.payment_received) || 0;
+  async function saveMoney(row: WorkflowRow, key: "total_amount" | "payment_received", amount: number) {
+    const fees = key === "total_amount" ? amount : Number(row.total_amount) || 0;
+    const received = key === "payment_received" ? amount : Number(row.payment_received) || 0;
+    const f = deriveFinance(fees, received);
     await patch(row, {
-      total_amount: fees,
-      payment_amount: fees,
-      balance_amount: Math.max(0, fees - received),
+      [key]: amount,
+      ...(key === "total_amount" ? { payment_amount: amount } : {}),
+      balance_amount: f.balance,
+      payment_status: legacyPaymentStatus(f),
     });
   }
 
-  async function saveReceived(row: WorkflowRow, received: number) {
-    const fees = Number(row.total_amount) || 0;
-    await patch(row, {
-      payment_received: received,
-      balance_amount: Math.max(0, fees - received),
-      payment_status: received <= 0 ? "pending" : received >= fees ? "paid" : "partial",
-    });
+  async function saveField(row: WorkflowRow, field: FieldConfig, raw: string) {
+    const key = field.field_key;
+    if (key === "total_amount" || key === "payment_received") {
+      return saveMoney(row, key as any, Number(raw) || 0);
+    }
+    let value: any = raw;
+    if (["number", "currency"].includes(field.field_type)) value = Number(raw) || 0;
+    if (field.field_type === "multiselect") {
+      value = raw.split(",").map((x) => x.trim()).filter(Boolean);
+    }
+    await patch(row, buildFieldPatch(row, key, value));
   }
-
-  const sources = Array.from(new Set(customers.map((c) => c.source_agent).filter(Boolean))) as string[];
-  const workTypes = Array.from(
-    new Set([...WORK_TYPES, ...customers.map((c) => c.work_type).filter(Boolean)]),
-  ) as string[];
 
   const rows = useMemo(() => {
     const query = q.trim().toLowerCase();
     return customers.filter((c) => {
       if (c.deleted_at) return false;
-      if (fDate && (c.registration_date ?? "").slice(0, 10) !== fDate) return false;
-      if (fToken && !String(c.token_number ?? "").toLowerCase().includes(fToken.toLowerCase())) return false;
-      if (fSource !== "all" && c.source_agent !== fSource) return false;
+      const date = (c.registration_date ?? "").slice(0, 10);
+      if (fFrom && date < fFrom) return false;
+      if (fTo && date > fTo) return false;
       if (fStaff !== "all" && c.assigned_staff_id !== fStaff) return false;
-      if (fWorkType !== "all" && c.work_type !== fWorkType) return false;
-      if (fPending !== "all" && (c.pending_item ?? "") !== fPending) return false;
-      if (fStatus !== "all" && (c.workflow_status ?? statusLabel(c.current_status)) !== fStatus) return false;
+      if (fPayment !== "all") {
+        const state = deriveFinance(c.total_amount, c.payment_received).state;
+        if (state !== fPayment) return false;
+      }
+      for (const [key, value] of Object.entries(fDropdowns)) {
+        if (!value || value === "all") continue;
+        const v = readFieldValue(c, key);
+        if (String(v ?? "") !== value) return false;
+      }
       if (!query) return true;
       return (
         String(c.customer_name ?? "").toLowerCase().includes(query) ||
@@ -292,11 +323,129 @@ export function WorkflowDashboard({
         String(c.property_address ?? "").toLowerCase().includes(query)
       );
     });
-  }, [customers, q, fDate, fToken, fSource, fStaff, fWorkType, fPending, fStatus]);
+  }, [customers, q, fFrom, fTo, fStaff, fPayment, fDropdowns]);
 
   const activeFilterCount =
-    (fDate ? 1 : 0) + (fToken ? 1 : 0) +
-    [fSource, fStaff, fWorkType, fPending, fStatus].filter((v) => v !== "all").length;
+    (fFrom ? 1 : 0) +
+    (fTo ? 1 : 0) +
+    [fStaff, fPayment].filter((v) => v !== "all").length +
+    Object.values(fDropdowns).filter((v) => v && v !== "all").length;
+
+  function renderFieldCell(c: WorkflowRow, field: FieldConfig) {
+    const key = field.field_key;
+    const editable = canEdit(c);
+    const value = readFieldValue(c, key);
+
+    if (key === "notes") {
+      return (
+        <div className="flex gap-1">
+          <Button size="sm" variant="outline" onClick={() => setRemarksFor(c)}>
+            <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+            {remarkCounts[c.id] ?? 0}
+          </Button>
+          <Button size="sm" variant="ghost" title="Payment history" onClick={() => setHistoryFor(c)}>
+            <History className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      );
+    }
+
+    if (key === "assigned_staff_id") {
+      return (
+        <SelectCell
+          disabled={!canEditAll}
+          value={value ?? null}
+          options={staff.map((s) => ({ value: s.id, label: s.full_name }))}
+          onSave={(v) => patch(c, { assigned_staff_id: v })}
+        />
+      );
+    }
+
+    if (hasOptions(field)) {
+      const current = Array.isArray(value) ? value.join(", ") : (value ?? null);
+      const opts = optionsFor(key, [current]);
+      const kind =
+        key === "workflow_status" ? "status" : key === "pending_item" ? "pending" : "noc";
+      return (
+        <div>
+          <SelectCell
+            disabled={!editable}
+            value={current}
+            options={opts.map((o) => ({ value: o, label: o }))}
+            onSave={(v) => saveField(c, field, v)}
+          />
+          {["workflow_status", "pending_item", "verification_noc_status"].includes(key) && (
+            <div className="px-1.5 pt-1">
+              <WorkflowBadge
+                value={
+                  key === "workflow_status"
+                    ? (c.workflow_status ?? statusLabel(c.current_status))
+                    : current
+                }
+                kind={kind as any}
+              />
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (field.field_type === "checkbox") {
+      return (
+        <SelectCell
+          disabled={!editable}
+          value={value ? "Yes" : "No"}
+          options={[{ value: "Yes", label: "Yes" }, { value: "No", label: "No" }]}
+          onSave={(v) => patch(c, buildFieldPatch(c, key, v === "Yes"))}
+        />
+      );
+    }
+
+    const inputType =
+      field.field_type === "date"
+        ? "date"
+        : field.field_type === "datetime"
+          ? "datetime-local"
+          : ["number", "currency"].includes(field.field_type)
+            ? "number"
+            : field.field_type === "email"
+              ? "email"
+              : field.field_type === "mobile"
+                ? "tel"
+                : "text";
+
+    const display =
+      field.field_type === "date" ? String(value ?? "").slice(0, 10) : (value ?? null);
+
+    return (
+      <EditableCell
+        disabled={!editable}
+        type={inputType as any}
+        value={display as any}
+        className={field.field_type === "textarea" ? "whitespace-pre-wrap" : ""}
+        onSave={(v) => saveField(c, field, v)}
+      />
+    );
+  }
+
+  function renderDerivedCell(c: WorkflowRow, key: string) {
+    const f = deriveFinance(c.total_amount, c.payment_received);
+    if (key === "balance_amount")
+      return (
+        <span className={f.balance > 0 ? "font-semibold text-destructive" : "font-semibold text-success"}>
+          {INR(f.balance)}
+        </span>
+      );
+    if (key === "excess_amount")
+      return <span className={f.excess > 0 ? "font-semibold text-primary" : ""}>{INR(f.excess)}</span>;
+    if (key === "payment_status_calc")
+      return (
+        <Badge className={`whitespace-nowrap border ${PAYMENT_STATE_CLASS[f.state]}`}>
+          {f.statusLabel}
+        </Badge>
+      );
+    return <span className="font-medium">{f.collectionPct.toFixed(2)}%</span>;
+  }
 
   return (
     <div className="space-y-4">
@@ -332,8 +481,7 @@ export function WorkflowDashboard({
               size="sm"
               className="h-9"
               onClick={() => {
-                setQ(""); setFDate(""); setFToken(""); setFSource("all"); setFStaff("all");
-                setFWorkType("all"); setFPending("all"); setFStatus("all");
+                setQ(""); setFFrom(""); setFTo(""); setFStaff("all"); setFPayment("all"); setFDropdowns({});
               }}
             >
               Clear
@@ -345,18 +493,44 @@ export function WorkflowDashboard({
         {showFilters && (
           <div className="mt-3 grid gap-3 border-t pt-3 md:grid-cols-4">
             <div>
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Date</Label>
-              <Input className="mt-1" type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} />
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">From date</Label>
+              <Input className="mt-1" type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} />
             </div>
             <div>
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Token Number</Label>
-              <Input className="mt-1" placeholder="Token" value={fToken} onChange={(e) => setFToken(e.target.value)} />
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">To date</Label>
+              <Input className="mt-1" type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} />
             </div>
-            <FilterSelect label="Source (Agent)" value={fSource} onChange={setFSource} options={sources.map((s) => ({ value: s, label: s }))} allLabel="All sources" />
-            <FilterSelect label="Staff" value={fStaff} onChange={setFStaff} options={staff.map((s) => ({ value: s.id, label: s.full_name }))} allLabel="All staff" />
-            <FilterSelect label="Work Type" value={fWorkType} onChange={setFWorkType} options={workTypes.map((t) => ({ value: t, label: t }))} allLabel="All work types" />
-            <FilterSelect label="Pending" value={fPending} onChange={setFPending} options={pendingOptionList.map((p) => ({ value: p, label: p }))} allLabel="All pending" />
-            <FilterSelect label="Status" value={fStatus} onChange={setFStatus} options={[...statusOptionList, ...STATUS_STEPS.map((s) => s.label)].map((s) => ({ value: s, label: s }))} allLabel="All statuses" />
+            <FilterSelect
+              label="Payment Status"
+              value={fPayment}
+              onChange={setFPayment}
+              options={[
+                { value: "pending", label: "Pending Payment" },
+                { value: "paid", label: "Fully Paid" },
+                { value: "excess", label: "Excess Received" },
+              ]}
+              allLabel="All payment statuses"
+            />
+            <FilterSelect
+              label="Staff"
+              value={fStaff}
+              onChange={setFStaff}
+              options={staff.map((s) => ({ value: s.id, label: s.full_name }))}
+              allLabel="All staff"
+            />
+            {dropdownFilterFields.map((f) => (
+              <FilterSelect
+                key={f.id}
+                label={f.label}
+                value={fDropdowns[f.field_key] ?? "all"}
+                onChange={(v) => setFDropdowns((prev) => ({ ...prev, [f.field_key]: v }))}
+                options={optionsFor(
+                  f.field_key,
+                  customers.map((c) => readFieldValue(c, f.field_key)),
+                ).map((o) => ({ value: o, label: o }))}
+                allLabel={`All ${f.label.toLowerCase()}`}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -366,114 +540,39 @@ export function WorkflowDashboard({
           <table className="w-full text-sm">
             <thead className="bg-secondary text-left text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
-                <th className="px-3 py-3">Date</th>
-                <th className="px-3 py-3">Token Number</th>
-                <th className="px-3 py-3">Source (Agent)</th>
-                <th className="px-3 py-3">Property Address</th>
-                <th className="px-3 py-3">Verification/NOC</th>
-                <th className="px-3 py-3">Fees</th>
-                <th className="px-3 py-3">Received</th>
-                <th className="px-3 py-3">Balance</th>
-                <th className="px-3 py-3">Pending</th>
-                <th className="px-3 py-3">Status</th>
-                <th className="px-3 py-3">Remarks</th>
+                {columns.map((col) => (
+                  <th key={col.key} className="px-3 py-3">{col.label}</th>
+                ))}
                 {canDelete && <th className="px-3 py-3 text-right">Delete</th>}
               </tr>
             </thead>
 
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={canDelete ? 12 : 11} className="py-10 text-center text-muted-foreground">No records match the current filters.</td></tr>
+                <tr>
+                  <td colSpan={columns.length + (canDelete ? 1 : 0)} className="py-10 text-center text-muted-foreground">
+                    No records match the current filters.
+                  </td>
+                </tr>
               ) : (
-                rows.map((c) => {
-                  const fees = Number(c.total_amount) || 0;
-                  const received = Number(c.payment_received) || 0;
-                  const balance = Math.max(0, fees - received);
-                  return (
-                    <tr key={c.id} className="border-t align-top hover:bg-muted/30">
-                      <td className="px-3 py-2">
-                        <EditableCell disabled={!canEdit(c)} type="date" value={(c.registration_date ?? "").slice(0, 10)} onSave={(v) => patch(c, { registration_date: v })} />
+                rows.map((c) => (
+                  <tr key={c.id} className="border-t align-top hover:bg-muted/30">
+                    {columns.map((col) => (
+                      <td key={col.key} className={`px-3 py-2 ${col.key === "property_address" ? "max-w-64" : ""}`}>
+                        {col.kind === "field"
+                          ? renderFieldCell(c, col.field)
+                          : renderDerivedCell(c, col.key)}
                       </td>
-                      <td className="px-3 py-2 font-mono font-semibold">
-                        <EditableCell disabled={!canEdit(c)} value={c.token_number} placeholder="Set token" onSave={(v) => patch(c, { token_number: v || null })} />
+                    ))}
+                    {canDelete && (
+                      <td className="px-3 py-2 text-right">
+                        <Button size="sm" variant="ghost" title="Delete record" onClick={() => setDeleteFor(c)}>
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
                       </td>
-                      <td className="px-3 py-2">
-                        <EditableCell disabled={!canEdit(c)} value={c.source_agent} onSave={(v) => patch(c, { source_agent: v || null })} />
-                      </td>
-                      <td className="max-w-64 px-3 py-2">
-                        <EditableCell disabled={!canEdit(c)} value={c.property_address} className="whitespace-pre-wrap" onSave={(v) => patch(c, { property_address: v || null })} />
-                      </td>
-                      <td className="px-3 py-2">
-                        <SelectCell
-                          disabled={!canEdit(c)}
-                          value={c.verification_noc_status}
-                          options={NOC_OPTIONS.map((o) => ({ value: o, label: o }))}
-                          onSave={(v) => patch(c, { verification_noc_status: v })}
-                        />
-                        <div className="px-1.5 pt-1">
-                          <WorkflowBadge value={c.verification_noc_status} kind="noc" />
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <EditableCell disabled={!canEdit(c)} type="number" value={fees} onSave={(v) => saveFees(c, Number(v) || 0)} />
-                      </td>
-                      <td className="px-3 py-2">
-                        <EditableCell disabled={!canEdit(c)} type="number" value={received} onSave={(v) => saveReceived(c, Number(v) || 0)} />
-                      </td>
-                      <td className="px-3 py-2">
-                        <span className={balance > 0 ? "font-semibold text-destructive" : "font-semibold text-success"}>{INR(balance)}</span>
-                      </td>
-                      <td className="px-3 py-2">
-                        <SelectCell
-                          value={c.pending_item}
-                          options={pendingOptionList.map((p) => ({ value: p, label: p }))}
-                          onSave={(v) => patch(c, { pending_item: v })}
-                        />
-                        <div className="px-1.5 pt-1">
-                          <WorkflowBadge value={c.pending_item} kind="pending" />
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <SelectCell
-                          disabled={!canEdit(c)}
-                          value={c.workflow_status ?? statusLabel(c.current_status)}
-                          options={statusOptionList.map((s) => ({ value: s, label: s }))}
-                          onSave={async (v) => {
-                            if (v === "Other") return setOtherFor({ row: c, field: "status" });
-                            await patch(c, { workflow_status: v });
-                          }}
-                        />
-                        <div className="px-1.5 pt-1">
-                          <WorkflowBadge value={c.workflow_status ?? c.current_status} kind="status" />
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="outline" onClick={() => setRemarksFor(c)}>
-                            <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
-                            {remarkCounts[c.id] ?? 0}
-                          </Button>
-                          <Button size="sm" variant="ghost" title="Payment history" onClick={() => setHistoryFor(c)}>
-                            <History className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </td>
-                      {canDelete && (
-                        <td className="px-3 py-2 text-right">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            title="Delete record"
-                            onClick={() => setDeleteFor(c)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
-                        </td>
-                      )}
-                    </tr>
-
-                  );
-                })
+                    )}
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -522,20 +621,6 @@ export function WorkflowDashboard({
         <PaymentHistoryDialog customer={historyFor} onClose={() => setHistoryFor(null)} />
       )}
 
-      {otherFor && (
-        <OtherReasonDialog
-          field={otherFor.field}
-          onClose={() => setOtherFor(null)}
-          onSave={async (text) => {
-            await patch(
-              otherFor.row,
-              otherFor.field === "pending" ? { pending_item: text } : { workflow_status: text },
-            );
-            setOtherFor(null);
-          }}
-        />
-      )}
-
       {remarksFor && (
         <RemarksDialog
           customer={remarksFor}
@@ -577,164 +662,3 @@ function FilterSelect({
   );
 }
 
-function RemarksDialog({
-  customer,
-  onClose,
-  addRemarkFn,
-  onAdded,
-}: {
-  customer: WorkflowRow;
-  onClose: () => void;
-  addRemarkFn: (args: { data: { customerId: string; message: string } }) => Promise<any>;
-  onAdded: () => void;
-}) {
-  const [items, setItems] = useState<any[]>([]);
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    load();
-  }, [customer.id]);
-
-  async function load() {
-    const { data } = await supabase
-      .from("customer_remarks")
-      .select("*")
-      .eq("customer_id", customer.id)
-      .order("created_at", { ascending: false });
-    setItems(data ?? []);
-  }
-
-  async function add() {
-    if (!text.trim()) return;
-    setBusy(true);
-    try {
-      await addRemarkFn({ data: { customerId: customer.id, message: text.trim() } });
-      setText("");
-      await load();
-      onAdded();
-      toast.success("Remark added");
-    } catch (e: any) {
-      toast.error(e.message ?? "Could not add remark");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            Remarks — {customer.token_number ? `Token ${customer.token_number}` : customer.application_number}
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-2">
-          <Textarea rows={3} placeholder="Write a remark..." value={text} onChange={(e) => setText(e.target.value)} />
-          <Button disabled={busy || !text.trim()} onClick={add} className="bg-navy-gradient text-primary-foreground">
-            {busy ? "Adding..." : "Add remark"}
-          </Button>
-        </div>
-
-        <div className="mt-2 space-y-3 border-t pt-3">
-          {items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No remarks yet.</p>
-          ) : (
-            items.map((r) => {
-              const d = new Date(r.created_at);
-              return (
-                <div key={r.id} className="rounded-lg border bg-secondary/30 p-3">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span className="font-semibold text-foreground">{r.author_name}</span>
-                    <span>{d.toLocaleDateString("en-IN")}</span>
-                    <span>{d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
-                  </div>
-                  <p className="mt-1 whitespace-pre-wrap text-sm">{r.message}</p>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Close</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-
-function OtherReasonDialog({
-  field,
-  onClose,
-  onSave,
-}: {
-  field: "pending" | "status";
-  onClose: () => void;
-  onSave: (text: string) => Promise<void>;
-}) {
-  const [text, setText] = useState("");
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>{field === "pending" ? "Specify Pending Reason" : "Specify Status"}</DialogTitle>
-        </DialogHeader>
-        <Input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Required" />
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button
-            disabled={!text.trim()}
-            onClick={() => onSave(text.trim())}
-          >
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function PaymentHistoryDialog({ customer, onClose }: { customer: WorkflowRow; onClose: () => void }) {
-  const [items, setItems] = useState<any[]>([]);
-  useEffect(() => {
-    supabase
-      .from("payment_history")
-      .select("*")
-      .eq("customer_id", customer.id)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => setItems(data ?? []));
-  }, [customer.id]);
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Payment history — {customer.token_number ?? customer.customer_name}</DialogTitle>
-        </DialogHeader>
-        {items.length === 0 ? (
-          <p className="py-6 text-center text-muted-foreground">No fee or payment changes recorded yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {items.map((h) => (
-              <div key={h.id} className="rounded-lg border p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold">{h.field}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(h.created_at).toLocaleString("en-IN")}
-                  </span>
-                </div>
-                <p className="mt-1">
-                  {INR(Number(h.previous_amount))} → <span className="font-semibold">{INR(Number(h.new_amount))}</span>
-                </p>
-                <p className="text-xs text-muted-foreground">Updated by {h.updated_by_name ?? "—"}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}

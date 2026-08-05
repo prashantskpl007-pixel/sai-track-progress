@@ -113,7 +113,9 @@ export const upsertFieldConfig = createServerFn({ method: "POST" })
     if (data.isRequired != null) payload["is_required"] = data.isRequired;
     if (data.showInRegistration != null) payload["show_in_registration"] = data.showInRegistration;
     if (data.showInWorkflow != null) payload["show_in_workflow"] = data.showInWorkflow;
+    if (data.defaultValue !== undefined) payload["default_value"] = data.defaultValue || null;
     if (data.sortOrder != null) payload["sort_order"] = data.sortOrder;
+
 
     if (data.id) {
       const { data: row, error } = await (context.supabase.from("field_configs") as any)

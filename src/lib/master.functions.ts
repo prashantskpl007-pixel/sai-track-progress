@@ -209,3 +209,73 @@ export const saveRolePermissions = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/* ---------------- Dropdown option management ---------------- */
+
+const OptionInput = z.object({
+  id: z.string().uuid().optional().nullable(),
+  fieldConfigId: z.string().uuid(),
+  label: z.string().trim().min(1).max(160),
+  isActive: z.boolean().optional(),
+  sortOrder: z.number().int().optional().nullable(),
+});
+
+export const upsertFieldOption = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: z.infer<typeof OptionInput>) => OptionInput.parse(d))
+  .handler(async ({ data, context }) => {
+    await assertOwner(context);
+    const table = (context.supabase.from("field_options" as any) as any);
+    if (data.id) {
+      const payload: Record<string, unknown> = { label: data.label };
+      if (data.isActive != null) payload["is_active"] = data.isActive;
+      if (data.sortOrder != null) payload["sort_order"] = data.sortOrder;
+      const { data: row, error } = await table.update(payload).eq("id", data.id).select("*").single();
+      if (error) throw new Error(error.message);
+      return row;
+    }
+    const { count } = await (context.supabase.from("field_options" as any) as any)
+      .select("*", { count: "exact", head: true })
+      .eq("field_config_id", data.fieldConfigId);
+    const { data: row, error } = await table
+      .insert({
+        field_config_id: data.fieldConfigId,
+        label: data.label,
+        is_active: data.isActive ?? true,
+        sort_order: data.sortOrder ?? (count ?? 0) + 1,
+      })
+      .select("*")
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+
+/** Options are never hard-deleted — historical records must keep their value. */
+export const setFieldOptionActive = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { id: string; isActive: boolean }) =>
+    z.object({ id: z.string().uuid(), isActive: z.boolean() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertOwner(context);
+    const { error } = await (context.supabase.from("field_options" as any) as any)
+      .update({ is_active: data.isActive })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const reorderFieldOptions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { ids: string[] }) =>
+    z.object({ ids: z.array(z.string().uuid()).min(1) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertOwner(context);
+    for (let i = 0; i < data.ids.length; i++) {
+      await (context.supabase.from("field_options" as any) as any)
+        .update({ sort_order: i + 1 })
+        .eq("id", data.ids[i]);
+    }
+    return { ok: true };
+  });

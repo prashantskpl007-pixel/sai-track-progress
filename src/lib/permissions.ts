@@ -61,6 +61,7 @@ export const FIELD_TYPES = [
   { value: "currency", label: "Currency" },
   { value: "date", label: "Date" },
   { value: "datetime", label: "Date & Time" },
+  { value: "time", label: "Time" },
   { value: "dropdown", label: "Dropdown" },
   { value: "multiselect", label: "Multi Select" },
   { value: "checkbox", label: "Checkbox" },

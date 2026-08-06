@@ -1388,6 +1388,7 @@ function CustomerFormDialog({
         <Button
           disabled={
             busy ||
+            missingRequired.length > 0 ||
             !values.customerName ||
             !values.mobileNumber ||
             !values.tokenNumber.trim() ||

@@ -49,6 +49,7 @@ export const CUSTOMER_COLUMNS = new Set([
   "registration_handling_type",
   "assigned_staff_id",
   "verification_noc_status",
+  "verification_partner_user_id",
   "total_amount",
   "payment_received",
   "balance_amount",
@@ -56,6 +57,7 @@ export const CUSTOMER_COLUMNS = new Set([
   "payment_date",
   "pending_item",
   "workflow_status",
+  "appointment_date",
   "appointment_time",
   "notes",
 ]);

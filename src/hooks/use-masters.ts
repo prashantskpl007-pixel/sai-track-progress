@@ -46,8 +46,10 @@ export function useMasters() {
     window.addEventListener(EVENT, handler);
 
     // Live sync — configuration changes appear everywhere without a refresh.
+    // Channel names must be unique per subscriber; a shared name makes the
+    // second mount attach callbacks to an already-subscribed channel and throw.
     const channel = supabase
-      .channel("field-config-sync")
+      .channel(`field-config-sync-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "field_configs" }, handler)
       .on("postgres_changes", { event: "*", schema: "public", table: "field_options" }, handler)
       .subscribe();

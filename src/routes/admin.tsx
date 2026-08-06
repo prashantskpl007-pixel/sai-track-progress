@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
   FileCheck,
@@ -1100,9 +1100,24 @@ function CustomerFormDialog({
   staff: Staff[];
   partners: any[];
 }) {
-  const { optionsFor } = useMasters();
+  const { optionsFor, fields } = useMasters();
   const masterPending = optionsFor("pending_item").map((label) => ({ id: label, label, is_active: true }));
   const masterStatuses = optionsFor("workflow_status").map((label) => ({ id: label, label, is_active: true }));
+
+  /* Field Configuration is the single source of truth for label / visibility /
+     mandatory / default value of every registration field. */
+  const cfg = (key: string) => fields.find((f) => f.field_key === key);
+  const show = (key: string) => {
+    const c = cfg(key);
+    return !c || (c.is_enabled && c.show_in_registration);
+  };
+  const lbl = (key: string, fallback: string) => cfg(key)?.label ?? fallback;
+  const req = (key: string) => Boolean(cfg(key)?.is_required);
+  const opts = (key: string, fallback: readonly string[]) => {
+    const list = optionsFor(key);
+    return list.length ? list : [...fallback];
+  };
+
   const [values, setValues] = useState({
     registrationDate: new Date().toISOString().slice(0, 10),
     tokenNumber: "",
@@ -1128,147 +1143,252 @@ function CustomerFormDialog({
     remarks: "",
   });
   const [busy, setBusy] = useState(false);
+  const defaultsApplied = useRef(false);
+
+  // Apply configured default values once the configuration has loaded.
+  useEffect(() => {
+    if (defaultsApplied.current || fields.length === 0) return;
+    defaultsApplied.current = true;
+    const map: Record<string, keyof typeof values> = {
+      source_agent: "sourceAgent",
+      work_type: "workType",
+      registration_handling_type: "registrationHandlingType",
+      verification_noc_status: "verificationNocStatus",
+      pending_item: "pendingItem",
+      workflow_status: "workflowStatus",
+      payment_method: "paymentMethod" as any,
+      appointment_time: "appointmentTime",
+      notes: "remarks",
+    };
+    const patch: Record<string, string> = {};
+    for (const f of fields) {
+      const target = map[f.field_key];
+      if (target && f.default_value) patch[target as string] = f.default_value;
+    }
+    if (Object.keys(patch).length) setValues((v) => ({ ...v, ...patch }));
+  }, [fields]);
+
   const fees = Number(values.totalFees) || 0;
   const received = Number(values.paymentReceived) || 0;
   const balance = Math.max(0, fees - received);
+
+  const missingRequired = fields
+    .filter((f) => f.is_enabled && f.show_in_registration && f.is_required)
+    .filter((f) => {
+      const key: Record<string, string> = {
+        registration_date: values.registrationDate,
+        token_number: values.tokenNumber,
+        source_agent: values.sourceAgent,
+        customer_name: values.customerName,
+        mobile_number: values.mobileNumber,
+        customer_email: values.customerEmail,
+        property_address: values.propertyAddress,
+        work_type: values.workType,
+        registration_handling_type: values.registrationHandlingType,
+        assigned_staff_id: values.assignedStaffId,
+        verification_partner_user_id: values.verificationPartnerUserId,
+        verification_noc_status: values.verificationNocStatus,
+        total_amount: values.totalFees,
+        payment_received: values.paymentReceived,
+        pending_item: values.pendingItem,
+        workflow_status: values.workflowStatus,
+        appointment_date: values.appointmentDate,
+        appointment_time: values.appointmentTime,
+        notes: values.remarks,
+      };
+      return f.field_key in key && !String(key[f.field_key] ?? "").trim();
+    })
+    .map((f) => f.label);
 
   return (
     <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
       <DialogHeader><DialogTitle>New Registration</DialogTitle></DialogHeader>
       <div className="grid gap-3">
         <div className="grid grid-cols-3 gap-3">
-          <Field label="Date">
-            <Input type="date" value={values.registrationDate} onChange={(e) => setValues({ ...values, registrationDate: e.target.value })} />
-          </Field>
-          <Field label="Token Number (unique)">
-            <Input value={values.tokenNumber} onChange={(e) => setValues({ ...values, tokenNumber: e.target.value })} placeholder="e.g. TKN-1042" />
-          </Field>
-          <Field label="Source (Agent)">
-            <Input value={values.sourceAgent} onChange={(e) => setValues({ ...values, sourceAgent: e.target.value })} placeholder="Agent / walk-in" />
-          </Field>
+          {show("registration_date") && (
+            <Field label={`${lbl("registration_date", "Date")}${req("registration_date") ? " *" : ""}`}>
+              <Input type="date" value={values.registrationDate} onChange={(e) => setValues({ ...values, registrationDate: e.target.value })} />
+            </Field>
+          )}
+          {show("token_number") && (
+            <Field label={`${lbl("token_number", "Token Number")} (unique)`}>
+              <Input value={values.tokenNumber} onChange={(e) => setValues({ ...values, tokenNumber: e.target.value })} placeholder="e.g. TKN-1042" />
+            </Field>
+          )}
+          {show("source_agent") && (
+            <Field label={`${lbl("source_agent", "Source (Agent)")}${req("source_agent") ? " *" : ""}`}>
+              {optionsFor("source_agent").length > 0 ? (
+                <Select value={values.sourceAgent} onValueChange={(v) => setValues({ ...values, sourceAgent: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select source..." /></SelectTrigger>
+                  <SelectContent>
+                    {optionsFor("source_agent").map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input value={values.sourceAgent} onChange={(e) => setValues({ ...values, sourceAgent: e.target.value })} placeholder="Agent / walk-in" />
+              )}
+            </Field>
+          )}
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <Field label="Customer Name">
-            <Input value={values.customerName} onChange={(e) => setValues({ ...values, customerName: e.target.value })} />
-          </Field>
-          <Field label="Mobile Number">
-            <Input inputMode="numeric" value={values.mobileNumber} onChange={(e) => setValues({ ...values, mobileNumber: e.target.value })} />
-          </Field>
-          <Field label="Email (optional)">
-            <Input type="email" value={values.customerEmail} onChange={(e) => setValues({ ...values, customerEmail: e.target.value })} />
-          </Field>
+          {show("customer_name") && (
+            <Field label={`${lbl("customer_name", "Customer Name")} *`}>
+              <Input value={values.customerName} onChange={(e) => setValues({ ...values, customerName: e.target.value })} />
+            </Field>
+          )}
+          {show("mobile_number") && (
+            <Field label={`${lbl("mobile_number", "Mobile Number")} *`}>
+              <Input inputMode="numeric" value={values.mobileNumber} onChange={(e) => setValues({ ...values, mobileNumber: e.target.value })} />
+            </Field>
+          )}
+          {show("customer_email") && (
+            <Field label={`${lbl("customer_email", "Email")}${req("customer_email") ? " *" : ""}`}>
+              <Input type="email" value={values.customerEmail} onChange={(e) => setValues({ ...values, customerEmail: e.target.value })} />
+            </Field>
+          )}
         </div>
-        <Field label="Property Address">
-          <Textarea rows={2} value={values.propertyAddress} onChange={(e) => setValues({ ...values, propertyAddress: e.target.value })} />
-        </Field>
+        {show("property_address") && (
+          <Field label={`${lbl("property_address", "Property Address")}${req("property_address") ? " *" : ""}`}>
+            <Textarea rows={2} value={values.propertyAddress} onChange={(e) => setValues({ ...values, propertyAddress: e.target.value })} />
+          </Field>
+        )}
         <div className="grid grid-cols-3 gap-3">
-          <Field label="Work Type">
-            <Select value={values.workType} onValueChange={(v) => setValues({ ...values, workType: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{WORK_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-            </Select>
-          </Field>
-          <Field label="Registration Handling Type">
-            <Select value={values.registrationHandlingType} onValueChange={(v) => setValues({ ...values, registrationHandlingType: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{REGISTRATION_HANDLING_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-            </Select>
-          </Field>
-          <Field label="Assigned Staff (required)">
-            <Select value={values.assignedStaffId} onValueChange={(v) => setValues({ ...values, assignedStaffId: v })}>
-              <SelectTrigger><SelectValue placeholder="Select staff..." /></SelectTrigger>
-              <SelectContent>
-                {staff.filter((s) => s.is_active).map((s) => <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </Field>
+          {show("work_type") && (
+            <Field label={`${lbl("work_type", "Work Type")}${req("work_type") ? " *" : ""}`}>
+              <Select value={values.workType} onValueChange={(v) => setValues({ ...values, workType: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{opts("work_type", WORK_TYPES).map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+          )}
+          {show("registration_handling_type") && (
+            <Field label={`${lbl("registration_handling_type", "Registration Handling Type")}${req("registration_handling_type") ? " *" : ""}`}>
+              <Select value={values.registrationHandlingType} onValueChange={(v) => setValues({ ...values, registrationHandlingType: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{opts("registration_handling_type", REGISTRATION_HANDLING_TYPES).map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+          )}
+          {show("assigned_staff_id") && (
+            <Field label={`${lbl("assigned_staff_id", "Assigned Staff")} *`}>
+              <Select value={values.assignedStaffId} onValueChange={(v) => setValues({ ...values, assignedStaffId: v })}>
+                <SelectTrigger><SelectValue placeholder="Select staff..." /></SelectTrigger>
+                <SelectContent>
+                  {staff.filter((s) => s.is_active).map((s) => <SelectItem key={s.id} value={s.id}>{s.full_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Verification / NOC Status">
-            <Select value={values.verificationNocStatus} onValueChange={(v) => setValues({ ...values, verificationNocStatus: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>{NOC_OPTIONS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-            </Select>
-          </Field>
-          <Field label="Verification Partner (optional)">
-            <Select
-              value={values.verificationPartnerUserId}
-              onValueChange={(v) => setValues({ ...values, verificationPartnerUserId: v })}
-            >
-              <SelectTrigger><SelectValue placeholder="Select partner..." /></SelectTrigger>
-              <SelectContent>
-                {partners.length === 0 ? (
-                  <SelectItem value="none" disabled>No verification partners yet</SelectItem>
-                ) : (
-                  partners.map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>)
-                )}
-              </SelectContent>
-            </Select>
-          </Field>
+          {show("verification_noc_status") && (
+            <Field label={`${lbl("verification_noc_status", "Verification / NOC Status")}${req("verification_noc_status") ? " *" : ""}`}>
+              <Select value={values.verificationNocStatus} onValueChange={(v) => setValues({ ...values, verificationNocStatus: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{opts("verification_noc_status", NOC_OPTIONS).map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+          )}
+          {show("verification_partner_user_id") && (
+            <Field label={`${lbl("verification_partner_user_id", "Verification Partner")}${req("verification_partner_user_id") ? " *" : ""}`}>
+              <Select
+                value={values.verificationPartnerUserId}
+                onValueChange={(v) => setValues({ ...values, verificationPartnerUserId: v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Select partner..." /></SelectTrigger>
+                <SelectContent>
+                  {partners.length === 0 ? (
+                    <SelectItem value="none" disabled>No verification partners yet</SelectItem>
+                  ) : (
+                    partners.map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>)
+                  )}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
         </div>
         <div className="grid grid-cols-3 gap-3 rounded-lg border bg-secondary/30 p-3">
-          <Field label="Total Fees (₹)">
-            <Input type="number" value={values.totalFees} onChange={(e) => setValues({ ...values, totalFees: e.target.value })} />
-          </Field>
-          <Field label="Amount Received (₹)">
-            <Input type="number" value={values.paymentReceived} onChange={(e) => setValues({ ...values, paymentReceived: e.target.value })} />
-          </Field>
-          <Field label="Balance (auto)">
+          {show("total_amount") && (
+            <Field label={`${lbl("total_amount", "Total Fees")} (₹)`}>
+              <Input type="number" value={values.totalFees} onChange={(e) => setValues({ ...values, totalFees: e.target.value })} />
+            </Field>
+          )}
+          {show("payment_received") && (
+            <Field label={`${lbl("payment_received", "Amount Received")} (₹)`}>
+              <Input type="number" value={values.paymentReceived} onChange={(e) => setValues({ ...values, paymentReceived: e.target.value })} />
+            </Field>
+          )}
+          <Field label={`${lbl("balance_amount", "Balance")} (auto)`}>
             <Input readOnly value={INR(balance)} className="font-semibold" />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Pending">
-            <Select value={values.pendingItem} onValueChange={(v) => setValues({ ...values, pendingItem: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {masterPending.filter((p: { is_active: boolean }) => p.is_active).map((t: { id: string; label: string }) => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
-                <SelectItem value="Other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-            {values.pendingItem === "Other" && (
-              <Input
-                className="mt-2"
-                placeholder="Specify pending reason (required)"
-                value={values.pendingOther}
-                onChange={(e) => setValues({ ...values, pendingOther: e.target.value })}
-              />
-            )}
-          </Field>
-          <Field label="Current Status">
-            <Select value={values.workflowStatus} onValueChange={(v) => setValues({ ...values, workflowStatus: v })}>
-              <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-              <SelectContent>
-                {masterStatuses.filter((p: { is_active: boolean }) => p.is_active).map((t: { id: string; label: string }) => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
-                <SelectItem value="Other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-            {values.workflowStatus === "Other" && (
-              <Input
-                className="mt-2"
-                placeholder="Specify status (required)"
-                value={values.statusOther}
-                onChange={(e) => setValues({ ...values, statusOther: e.target.value })}
-              />
-            )}
-          </Field>
+          {show("pending_item") && (
+            <Field label={`${lbl("pending_item", "Pending")}${req("pending_item") ? " *" : ""}`}>
+              <Select value={values.pendingItem} onValueChange={(v) => setValues({ ...values, pendingItem: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {masterPending.filter((p: { is_active: boolean }) => p.is_active).map((t: { id: string; label: string }) => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              {values.pendingItem === "Other" && (
+                <Input
+                  className="mt-2"
+                  placeholder="Specify pending reason (required)"
+                  value={values.pendingOther}
+                  onChange={(e) => setValues({ ...values, pendingOther: e.target.value })}
+                />
+              )}
+            </Field>
+          )}
+          {show("workflow_status") && (
+            <Field label={`${lbl("workflow_status", "Current Status")}${req("workflow_status") ? " *" : ""}`}>
+              <Select value={values.workflowStatus} onValueChange={(v) => setValues({ ...values, workflowStatus: v })}>
+                <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                <SelectContent>
+                  {masterStatuses.filter((p: { is_active: boolean }) => p.is_active).map((t: { id: string; label: string }) => <SelectItem key={t.id} value={t.label}>{t.label}</SelectItem>)}
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              {values.workflowStatus === "Other" && (
+                <Input
+                  className="mt-2"
+                  placeholder="Specify status (required)"
+                  value={values.statusOther}
+                  onChange={(e) => setValues({ ...values, statusOther: e.target.value })}
+                />
+              )}
+            </Field>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Appointment Date">
-            <Input type="date" value={values.appointmentDate} onChange={(e) => setValues({ ...values, appointmentDate: e.target.value })} />
-          </Field>
-          <Field label="Appointment Time">
-            <Input type="time" value={values.appointmentTime} onChange={(e) => setValues({ ...values, appointmentTime: e.target.value })} />
-          </Field>
+          {show("appointment_date") && (
+            <Field label={`${lbl("appointment_date", "Appointment Date")}${req("appointment_date") ? " *" : ""}`}>
+              <Input type="date" value={values.appointmentDate} onChange={(e) => setValues({ ...values, appointmentDate: e.target.value })} />
+            </Field>
+          )}
+          {show("appointment_time") && (
+            <Field label={`${lbl("appointment_time", "Appointment Time")}${req("appointment_time") ? " *" : ""}`}>
+              <Input type="time" value={values.appointmentTime} onChange={(e) => setValues({ ...values, appointmentTime: e.target.value })} />
+            </Field>
+          )}
         </div>
-        <Field label="Remarks (first message in the timeline)">
-          <Textarea rows={2} value={values.remarks} onChange={(e) => setValues({ ...values, remarks: e.target.value })} />
-        </Field>
+        {show("notes") && (
+          <Field label={`${lbl("notes", "Remarks")} (first message in the timeline)`}>
+            <Textarea rows={2} value={values.remarks} onChange={(e) => setValues({ ...values, remarks: e.target.value })} />
+          </Field>
+        )}
+        {missingRequired.length > 0 && (
+          <p className="text-xs text-destructive">Required: {missingRequired.join(", ")}</p>
+        )}
       </div>
+
       <DialogFooter>
         <Button
           disabled={
             busy ||
+            missingRequired.length > 0 ||
             !values.customerName ||
             !values.mobileNumber ||
             !values.tokenNumber.trim() ||

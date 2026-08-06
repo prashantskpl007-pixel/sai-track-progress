@@ -406,13 +406,15 @@ export function WorkflowDashboard({
         ? "date"
         : field.field_type === "datetime"
           ? "datetime-local"
-          : ["number", "currency"].includes(field.field_type)
-            ? "number"
-            : field.field_type === "email"
-              ? "email"
-              : field.field_type === "mobile"
-                ? "tel"
-                : "text";
+          : field.field_type === "time"
+            ? "time"
+            : ["number", "currency"].includes(field.field_type)
+              ? "number"
+              : field.field_type === "email"
+                ? "email"
+                : field.field_type === "mobile"
+                  ? "tel"
+                  : "text";
 
     const display =
       field.field_type === "date" ? String(value ?? "").slice(0, 10) : (value ?? null);

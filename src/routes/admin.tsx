@@ -1100,9 +1100,24 @@ function CustomerFormDialog({
   staff: Staff[];
   partners: any[];
 }) {
-  const { optionsFor } = useMasters();
+  const { optionsFor, fields } = useMasters();
   const masterPending = optionsFor("pending_item").map((label) => ({ id: label, label, is_active: true }));
   const masterStatuses = optionsFor("workflow_status").map((label) => ({ id: label, label, is_active: true }));
+
+  /* Field Configuration is the single source of truth for label / visibility /
+     mandatory / default value of every registration field. */
+  const cfg = (key: string) => fields.find((f) => f.field_key === key);
+  const show = (key: string) => {
+    const c = cfg(key);
+    return !c || (c.is_enabled && c.show_in_registration);
+  };
+  const lbl = (key: string, fallback: string) => cfg(key)?.label ?? fallback;
+  const req = (key: string) => Boolean(cfg(key)?.is_required);
+  const opts = (key: string, fallback: readonly string[]) => {
+    const list = optionsFor(key);
+    return list.length ? list : [...fallback];
+  };
+
   const [values, setValues] = useState({
     registrationDate: new Date().toISOString().slice(0, 10),
     tokenNumber: "",
@@ -1128,9 +1143,62 @@ function CustomerFormDialog({
     remarks: "",
   });
   const [busy, setBusy] = useState(false);
+  const defaultsApplied = useRef(false);
+
+  // Apply configured default values once the configuration has loaded.
+  useEffect(() => {
+    if (defaultsApplied.current || fields.length === 0) return;
+    defaultsApplied.current = true;
+    const map: Record<string, keyof typeof values> = {
+      source_agent: "sourceAgent",
+      work_type: "workType",
+      registration_handling_type: "registrationHandlingType",
+      verification_noc_status: "verificationNocStatus",
+      pending_item: "pendingItem",
+      workflow_status: "workflowStatus",
+      payment_method: "paymentMethod" as any,
+      appointment_time: "appointmentTime",
+      notes: "remarks",
+    };
+    const patch: Record<string, string> = {};
+    for (const f of fields) {
+      const target = map[f.field_key];
+      if (target && f.default_value) patch[target as string] = f.default_value;
+    }
+    if (Object.keys(patch).length) setValues((v) => ({ ...v, ...patch }));
+  }, [fields]);
+
   const fees = Number(values.totalFees) || 0;
   const received = Number(values.paymentReceived) || 0;
   const balance = Math.max(0, fees - received);
+
+  const missingRequired = fields
+    .filter((f) => f.is_enabled && f.show_in_registration && f.is_required)
+    .filter((f) => {
+      const key: Record<string, string> = {
+        registration_date: values.registrationDate,
+        token_number: values.tokenNumber,
+        source_agent: values.sourceAgent,
+        customer_name: values.customerName,
+        mobile_number: values.mobileNumber,
+        customer_email: values.customerEmail,
+        property_address: values.propertyAddress,
+        work_type: values.workType,
+        registration_handling_type: values.registrationHandlingType,
+        assigned_staff_id: values.assignedStaffId,
+        verification_partner_user_id: values.verificationPartnerUserId,
+        verification_noc_status: values.verificationNocStatus,
+        total_amount: values.totalFees,
+        payment_received: values.paymentReceived,
+        pending_item: values.pendingItem,
+        workflow_status: values.workflowStatus,
+        appointment_date: values.appointmentDate,
+        appointment_time: values.appointmentTime,
+        notes: values.remarks,
+      };
+      return f.field_key in key && !String(key[f.field_key] ?? "").trim();
+    })
+    .map((f) => f.label);
 
   return (
     <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">

@@ -31,6 +31,9 @@ const CustomerInput = z.object({
   workflowStatus: z.string().optional().nullable(),
   currentStatus: z.string().optional().nullable(),
   totalFees: z.number().optional().nullable(),
+  sourceCommission: z.number().optional().nullable(),
+  commissionPaid: z.number().optional().nullable(),
+
   // Registration Staff — MANDATORY
   assignedStaffId: z.string().uuid(),
   // Verification Partner — optional

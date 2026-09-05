@@ -1518,6 +1518,8 @@ function EditCustomerDialog({
   const [otherCharges, setOtherCharges] = useState(String(customer.other_charges ?? ""));
   const [paymentReceived, setPaymentReceived] = useState(String(customer.payment_received ?? ""));
   const [paymentMethod, setPaymentMethod] = useState(customer.payment_method ?? "");
+  const [sourceCommission, setSourceCommission] = useState(String((customer as any).source_commission ?? ""));
+  const [commissionPaid, setCommissionPaid] = useState(String((customer as any).commission_paid ?? ""));
   const [notes, setNotes] = useState(customer.notes ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1530,6 +1532,7 @@ function EditCustomerDialog({
     (Number(serviceCharges) || 0) +
     (Number(otherCharges) || 0);
   const balance = Math.max(0, total - (Number(paymentReceived) || 0));
+  const commission = deriveCommission(sourceCommission, commissionPaid);
 
   useEffect(() => {
     loadNotes();
@@ -1574,6 +1577,8 @@ function EditCustomerDialog({
             payment_received: Number(paymentReceived) || 0,
             balance_amount: balance,
             payment_method: paymentMethod || null,
+            source_commission: Number(sourceCommission) || 0,
+            commission_paid: Number(commissionPaid) || 0,
             notes: notes || null,
             agreement_pdf_path: pdfPath,
           },
@@ -1644,6 +1649,29 @@ function EditCustomerDialog({
             </Field>
           </div>
           <p className="mt-2 text-sm">Total: <span className="font-semibold">{INR(total)}</span> · Balance: <span className={balance > 0 ? "text-destructive font-semibold" : "text-success font-semibold"}>{INR(balance)}</span></p>
+        </div>
+        <div className="rounded-lg border bg-secondary/30 p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Source / agent commission (₹)
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Source Commission">
+              <Input type="number" value={sourceCommission} onChange={(e) => setSourceCommission(e.target.value)} />
+            </Field>
+            <Field label="Commission Paid">
+              <Input type="number" value={commissionPaid} onChange={(e) => setCommissionPaid(e.target.value)} />
+            </Field>
+          </div>
+          <p className="mt-2 text-sm">
+            {commission.excess > 0 ? "Commission excess: " : "Commission pending: "}
+            <span className={commission.excess > 0 ? "font-semibold text-primary" : commission.pending > 0 ? "font-semibold text-destructive" : "font-semibold text-success"}>
+              {INR(commission.excess > 0 ? commission.excess : commission.pending)}
+            </span>{" "}
+            · Status: <span className="font-semibold">{commission.statusLabel}</span>
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Commission is tracked separately and never changes the customer balance.
+          </p>
         </div>
         <Field label="Customer-visible notes">
           <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />

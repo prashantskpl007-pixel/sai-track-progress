@@ -120,6 +120,41 @@ export function deriveFinance(feesRaw: any, receivedRaw: any): Finance {
   return { fees, received, balance, excess, state, statusLabel, collectionPct };
 }
 
+/* ------------------------- Commission calculations ------------------------ */
+
+export type CommissionState = "pending" | "paid" | "excess";
+
+export type Commission = {
+  commission: number;
+  paid: number;
+  pending: number;
+  excess: number;
+  state: CommissionState;
+  statusLabel: string;
+};
+
+/**
+ * Agent / source commission. Completely independent of the customer's
+ * fees, received and balance figures.
+ */
+export function deriveCommission(commissionRaw: any, paidRaw: any): Commission {
+  const commission = Number(commissionRaw) || 0;
+  const paid = Number(paidRaw) || 0;
+  const pending = Math.max(0, commission - paid);
+  const excess = Math.max(0, paid - commission);
+  const state: CommissionState =
+    paid > commission ? "excess" : paid >= commission && commission > 0 ? "paid" : "pending";
+  const statusLabel =
+    state === "excess" ? "Excess Paid" : state === "paid" ? "Fully Paid" : "Pending";
+  return { commission, paid, pending, excess, state, statusLabel };
+}
+
+export const COMMISSION_STATE_CLASS: Record<CommissionState, string> = {
+  pending: "bg-gold/20 text-gold-foreground border-gold/40",
+  paid: "bg-success/15 text-success border-success/30",
+  excess: "bg-primary/10 text-primary border-primary/30",
+};
+
 export const PAYMENT_STATE_LABELS: Record<PaymentState, string> = {
   pending: "Pending Payment",
   paid: "Fully Paid",

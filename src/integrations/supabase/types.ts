@@ -126,6 +126,7 @@ export type Database = {
           appointment_time: string | null
           assigned_staff_id: string | null
           balance_amount: number | null
+          commission_paid: number
           created_at: string
           current_status: Database["public"]["Enums"]["registration_status"]
           custom_fields: Json
@@ -151,6 +152,7 @@ export type Database = {
           registration_handling_type: string | null
           service_charges: number | null
           source_agent: string | null
+          source_commission: number
           support_number: string | null
           token_number: string | null
           total_amount: number | null
@@ -173,6 +175,7 @@ export type Database = {
           appointment_time?: string | null
           assigned_staff_id?: string | null
           balance_amount?: number | null
+          commission_paid?: number
           created_at?: string
           current_status?: Database["public"]["Enums"]["registration_status"]
           custom_fields?: Json
@@ -198,6 +201,7 @@ export type Database = {
           registration_handling_type?: string | null
           service_charges?: number | null
           source_agent?: string | null
+          source_commission?: number
           support_number?: string | null
           token_number?: string | null
           total_amount?: number | null
@@ -220,6 +224,7 @@ export type Database = {
           appointment_time?: string | null
           assigned_staff_id?: string | null
           balance_amount?: number | null
+          commission_paid?: number
           created_at?: string
           current_status?: Database["public"]["Enums"]["registration_status"]
           custom_fields?: Json
@@ -245,6 +250,7 @@ export type Database = {
           registration_handling_type?: string | null
           service_charges?: number | null
           source_agent?: string | null
+          source_commission?: number
           support_number?: string | null
           token_number?: string | null
           total_amount?: number | null

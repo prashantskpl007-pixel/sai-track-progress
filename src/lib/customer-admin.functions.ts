@@ -31,6 +31,9 @@ const CustomerInput = z.object({
   workflowStatus: z.string().optional().nullable(),
   currentStatus: z.string().optional().nullable(),
   totalFees: z.number().optional().nullable(),
+  sourceCommission: z.number().optional().nullable(),
+  commissionPaid: z.number().optional().nullable(),
+
   // Registration Staff — MANDATORY
   assignedStaffId: z.string().uuid(),
   // Verification Partner — optional
@@ -145,6 +148,8 @@ export const createCustomer = createServerFn({ method: "POST" })
         total_amount: totals.total,
         payment_received: data.paymentReceived ?? 0,
         balance_amount: totals.balance,
+        source_commission: data.sourceCommission ?? 0,
+        commission_paid: data.commissionPaid ?? 0,
         payment_method: data.paymentMethod ?? null,
         payment_date: data.paymentDate ?? null,
         assigned_staff_id: data.assignedStaffId,
@@ -206,6 +211,8 @@ const UpdateInput = z.object({
     total_amount: z.number().nullable().optional(),
     payment_received: z.number().nullable().optional(),
     balance_amount: z.number().nullable().optional(),
+    source_commission: z.number().nullable().optional(),
+    commission_paid: z.number().nullable().optional(),
     payment_method: z.string().nullable().optional(),
     payment_date: z.string().nullable().optional(),
     assigned_staff_id: z.string().uuid().nullable().optional(),
@@ -233,7 +240,7 @@ export const updateCustomer = createServerFn({ method: "POST" })
 
     const { data: before, error: beforeErr } = await context.supabase
       .from("customers")
-      .select("id, assigned_staff_id, total_amount, payment_received")
+      .select("id, assigned_staff_id, total_amount, payment_received, source_commission, commission_paid")
       .eq("id", data.id)
       .single();
     if (beforeErr) throw new Error(beforeErr.message);
@@ -292,6 +299,21 @@ export const updateCustomer = createServerFn({ method: "POST" })
         updated_by: context.userId,
         updated_by_name: actorName,
       });
+    }
+    for (const [key, label] of [
+      ["source_commission", "Source Commission"],
+      ["commission_paid", "Commission Paid"],
+    ] as const) {
+      if (patch[key] !== undefined && Number(patch[key]) !== Number((before as any)[key] ?? 0)) {
+        history.push({
+          customer_id: data.id,
+          field: label,
+          previous_amount: (before as any)[key] ?? 0,
+          new_amount: patch[key],
+          updated_by: context.userId,
+          updated_by_name: actorName,
+        });
+      }
     }
     if (history.length) await context.supabase.from("payment_history").insert(history);
 

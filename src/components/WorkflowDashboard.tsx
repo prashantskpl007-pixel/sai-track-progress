@@ -39,6 +39,8 @@ import { useMasters } from "@/hooks/use-masters";
 import { useSession } from "@/hooks/use-session";
 import {
   buildFieldPatch,
+  COMMISSION_STATE_CLASS,
+  deriveCommission,
   deriveFinance,
   hasOptions,
   INR,
@@ -218,16 +220,27 @@ export function WorkflowDashboard({
       { kind: "derived", key: "payment_status_calc", label: "Payment Status" },
       { kind: "derived", key: "collection_pct", label: "Collection %" },
     ];
+    const commissionDerived: Column[] = [
+      { kind: "derived", key: "commission_pending", label: "Commission Pending / Excess" },
+      { kind: "derived", key: "commission_status", label: "Commission Status" },
+    ];
     const cols: Column[] = [];
     let inserted = false;
+    let commissionInserted = false;
+    const hasCommissionPaid = visible.some((f) => f.field_key === "commission_paid");
     visible.forEach((f) => {
       cols.push({ kind: "field", key: f.field_key, label: f.label, field: f });
       if (f.field_key === "payment_received") {
         cols.push(...derived);
         inserted = true;
       }
+      if (f.field_key === "commission_paid") {
+        cols.push(...commissionDerived);
+        commissionInserted = true;
+      }
     });
     if (!inserted) cols.push(...derived);
+    if (!commissionInserted && hasCommissionPaid) cols.push(...commissionDerived);
     return cols;
   }, [fields]);
 
@@ -431,6 +444,22 @@ export function WorkflowDashboard({
   }
 
   function renderDerivedCell(c: WorkflowRow, key: string) {
+    if (key === "commission_pending" || key === "commission_status") {
+      const cm = deriveCommission(c.source_commission, c.commission_paid);
+      if (key === "commission_status")
+        return (
+          <Badge className={`whitespace-nowrap border ${COMMISSION_STATE_CLASS[cm.state]}`}>
+            {cm.statusLabel}
+          </Badge>
+        );
+      if (cm.excess > 0)
+        return <span className="font-semibold text-primary">{INR(cm.excess)} excess</span>;
+      return (
+        <span className={cm.pending > 0 ? "font-semibold text-destructive" : "font-semibold text-success"}>
+          {INR(cm.pending)}
+        </span>
+      );
+    }
     const f = deriveFinance(c.total_amount, c.payment_received);
     if (key === "balance_amount")
       return (

@@ -60,6 +60,8 @@ export const CUSTOMER_COLUMNS = new Set([
   "appointment_date",
   "appointment_time",
   "notes",
+  "source_commission",
+  "commission_paid",
 ]);
 
 /** Fields the system computes — never editable, never configurable. */
@@ -68,7 +70,10 @@ export const DERIVED_FIELDS = [
   { key: "excess_amount", label: "Excess Amount" },
   { key: "payment_status_calc", label: "Payment Status" },
   { key: "collection_pct", label: "Collection %" },
+  { key: "commission_pending", label: "Commission Pending / Excess" },
+  { key: "commission_status", label: "Commission Status" },
 ];
+
 
 export function isCustomField(f: { field_key: string }) {
   return !CUSTOMER_COLUMNS.has(f.field_key);
@@ -114,6 +119,41 @@ export function deriveFinance(feesRaw: any, receivedRaw: any): Finance {
   const collectionPct = fees > 0 ? (received / fees) * 100 : 0;
   return { fees, received, balance, excess, state, statusLabel, collectionPct };
 }
+
+/* ------------------------- Commission calculations ------------------------ */
+
+export type CommissionState = "pending" | "paid" | "excess";
+
+export type Commission = {
+  commission: number;
+  paid: number;
+  pending: number;
+  excess: number;
+  state: CommissionState;
+  statusLabel: string;
+};
+
+/**
+ * Agent / source commission. Completely independent of the customer's
+ * fees, received and balance figures.
+ */
+export function deriveCommission(commissionRaw: any, paidRaw: any): Commission {
+  const commission = Number(commissionRaw) || 0;
+  const paid = Number(paidRaw) || 0;
+  const pending = Math.max(0, commission - paid);
+  const excess = Math.max(0, paid - commission);
+  const state: CommissionState =
+    paid > commission ? "excess" : paid >= commission && commission > 0 ? "paid" : "pending";
+  const statusLabel =
+    state === "excess" ? "Excess Paid" : state === "paid" ? "Fully Paid" : "Pending";
+  return { commission, paid, pending, excess, state, statusLabel };
+}
+
+export const COMMISSION_STATE_CLASS: Record<CommissionState, string> = {
+  pending: "bg-gold/20 text-gold-foreground border-gold/40",
+  paid: "bg-success/15 text-success border-success/30",
+  excess: "bg-primary/10 text-primary border-primary/30",
+};
 
 export const PAYMENT_STATE_LABELS: Record<PaymentState, string> = {
   pending: "Pending Payment",

@@ -60,6 +60,8 @@ export const CUSTOMER_COLUMNS = new Set([
   "appointment_date",
   "appointment_time",
   "notes",
+  "source_commission",
+  "commission_paid",
 ]);
 
 /** Fields the system computes — never editable, never configurable. */
@@ -68,7 +70,10 @@ export const DERIVED_FIELDS = [
   { key: "excess_amount", label: "Excess Amount" },
   { key: "payment_status_calc", label: "Payment Status" },
   { key: "collection_pct", label: "Collection %" },
+  { key: "commission_pending", label: "Commission Pending / Excess" },
+  { key: "commission_status", label: "Commission Status" },
 ];
+
 
 export function isCustomField(f: { field_key: string }) {
   return !CUSTOMER_COLUMNS.has(f.field_key);

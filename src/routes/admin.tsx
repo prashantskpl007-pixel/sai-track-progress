@@ -100,6 +100,7 @@ import { KycPanel } from "@/components/KycPanel";
 import { WorkflowDashboard } from "@/components/WorkflowDashboard";
 import { MasterModule } from "@/components/MasterModule";
 import { useMasters } from "@/hooks/use-masters";
+import { deriveCommission } from "@/lib/field-config";
 
 import {
   listVerificationPartners,
@@ -332,14 +333,25 @@ function AdminPanel() {
 
   // Source (agent) analytics — volume, revenue, collection
   const sourceStats = useMemo(() => {
-    const map = new Map<string, { name: string; jobs: number; revenue: number; received: number }>();
+    const map = new Map<string, {
+      name: string; jobs: number; revenue: number; received: number;
+      commission: number; commissionPaid: number; commissionPending: number; commissionExcess: number;
+    }>();
     customers.forEach((c: any) => {
       if (c.deleted_at) return;
       const key = (c.source_agent || "Direct / Walk-in") as string;
-      const row = map.get(key) ?? { name: key, jobs: 0, revenue: 0, received: 0 };
+      const row = map.get(key) ?? {
+        name: key, jobs: 0, revenue: 0, received: 0,
+        commission: 0, commissionPaid: 0, commissionPending: 0, commissionExcess: 0,
+      };
       row.jobs += 1;
       row.revenue += Number(c.total_amount) || 0;
       row.received += Number(c.payment_received) || 0;
+      const cm = deriveCommission(c.source_commission, c.commission_paid);
+      row.commission += cm.commission;
+      row.commissionPaid += cm.paid;
+      row.commissionPending += cm.pending;
+      row.commissionExcess += cm.excess;
       map.set(key, row);
     });
     return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
@@ -618,11 +630,13 @@ function AdminPanel() {
                       <tr>
                         <th className="py-2">Source</th><th>Jobs</th><th>Total fees</th>
                         <th>Collected</th><th>Outstanding</th><th>Collection %</th>
+                        <th>Total commission</th><th>Commission paid</th>
+                        <th>Commission pending</th><th>Commission excess</th>
                       </tr>
                     </thead>
                     <tbody>
                       {sourceStats.length === 0 ? (
-                        <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">No data yet.</td></tr>
+                        <tr><td colSpan={10} className="py-6 text-center text-muted-foreground">No data yet.</td></tr>
                       ) : sourceStats.map((s) => (
                         <tr key={s.name} className="border-t">
                           <td className="py-2 font-medium">{s.name}</td>
@@ -631,6 +645,10 @@ function AdminPanel() {
                           <td className="text-success">{INR(s.received)}</td>
                           <td className={s.revenue - s.received > 0 ? "text-destructive" : ""}>{INR(Math.max(0, s.revenue - s.received))}</td>
                           <td>{s.revenue > 0 ? Math.round((s.received / s.revenue) * 100) : 0}%</td>
+                          <td>{INR(s.commission)}</td>
+                          <td className="text-success">{INR(s.commissionPaid)}</td>
+                          <td className={s.commissionPending > 0 ? "text-destructive" : ""}>{INR(s.commissionPending)}</td>
+                          <td className={s.commissionExcess > 0 ? "text-primary" : ""}>{INR(s.commissionExcess)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1133,6 +1151,8 @@ function CustomerFormDialog({
     verificationNocStatus: NOC_OPTIONS[0],
     totalFees: "",
     paymentReceived: "",
+    sourceCommission: "",
+    commissionPaid: "",
     pendingItem: "",
     workflowStatus: "",
     pendingOther: "",
@@ -1171,6 +1191,7 @@ function CustomerFormDialog({
   const fees = Number(values.totalFees) || 0;
   const received = Number(values.paymentReceived) || 0;
   const balance = Math.max(0, fees - received);
+  const commission = deriveCommission(values.sourceCommission, values.commissionPaid);
 
   const missingRequired = fields
     .filter((f) => f.is_enabled && f.show_in_registration && f.is_required)
@@ -1190,6 +1211,8 @@ function CustomerFormDialog({
         verification_noc_status: values.verificationNocStatus,
         total_amount: values.totalFees,
         payment_received: values.paymentReceived,
+        source_commission: values.sourceCommission,
+        commission_paid: values.commissionPaid,
         pending_item: values.pendingItem,
         workflow_status: values.workflowStatus,
         appointment_date: values.appointmentDate,
@@ -1321,6 +1344,26 @@ function CustomerFormDialog({
           <Field label={`${lbl("balance_amount", "Balance")} (auto)`}>
             <Input readOnly value={INR(balance)} className="font-semibold" />
           </Field>
+          {show("source_commission") && (
+            <Field label={`${lbl("source_commission", "Source Commission")} (₹)${req("source_commission") ? " *" : ""}`}>
+              <Input type="number" value={values.sourceCommission} onChange={(e) => setValues({ ...values, sourceCommission: e.target.value })} />
+            </Field>
+          )}
+          {show("commission_paid") && (
+            <Field label={`${lbl("commission_paid", "Commission Paid")} (₹)${req("commission_paid") ? " *" : ""}`}>
+              <Input type="number" value={values.commissionPaid} onChange={(e) => setValues({ ...values, commissionPaid: e.target.value })} />
+            </Field>
+          )}
+          <Field label="Commission Pending / Excess (auto)">
+            <Input
+              readOnly
+              className="font-semibold"
+              value={commission.excess > 0 ? `${INR(commission.excess)} excess` : INR(commission.pending)}
+            />
+          </Field>
+          <Field label="Commission Status (auto)">
+            <Input readOnly value={commission.statusLabel} className="font-semibold" />
+          </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {show("pending_item") && (
@@ -1415,6 +1458,8 @@ function CustomerFormDialog({
                 verificationNocStatus: values.verificationNocStatus,
                 totalFees: Number(values.totalFees) || 0,
                 paymentReceived: Number(values.paymentReceived) || 0,
+                sourceCommission: Number(values.sourceCommission) || 0,
+                commissionPaid: Number(values.commissionPaid) || 0,
                 paymentStatus:
                   (Number(values.paymentReceived) || 0) <= 0
                     ? "pending"

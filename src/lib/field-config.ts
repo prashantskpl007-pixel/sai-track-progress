@@ -7,8 +7,11 @@
  * for how those rows are interpreted by the UI.
  */
 
+export type FieldModule = "workflow" | "enquiry";
+
 export type FieldConfig = {
   id: string;
+  module: string;
   field_key: string;
   label: string;
   field_type: string;
@@ -21,6 +24,7 @@ export type FieldConfig = {
   show_in_workflow: boolean;
   sort_order: number;
 };
+
 
 export type FieldOption = {
   id: string;

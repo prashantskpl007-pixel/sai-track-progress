@@ -19,7 +19,7 @@ export function notifyMastersChanged() {
 
 export function useMasters() {
   const [roles, setRoles] = useState<MasterRole[]>([]);
-  const [fields, setFields] = useState<FieldConfig[]>([]);
+  const [allFields, setAllFields] = useState<FieldConfig[]>([]);
   const [options, setOptions] = useState<FieldOption[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,9 +30,10 @@ export function useMasters() {
       (supabase.from("field_options" as any) as any).select("*").order("sort_order"),
     ]);
     setRoles((r.data as MasterRole[]) ?? []);
-    setFields(
+    setAllFields(
       ((f.data as any[]) ?? []).map((x) => ({
         ...x,
+        module: x.module ?? "workflow",
         options: Array.isArray(x.options) ? x.options : [],
       })) as FieldConfig[],
     );
@@ -60,10 +61,25 @@ export function useMasters() {
     };
   }, [reload]);
 
+  /** Workflow/registration fields — the default module. */
+  const fields = allFields.filter((f) => (f.module ?? "workflow") === "workflow");
+  const enquiryFields = allFields.filter((f) => f.module === "enquiry");
+
+  const fieldsFor = useCallback(
+    (module: string) => allFields.filter((f) => (f.module ?? "workflow") === module),
+    [allFields],
+  );
+
   /** Active choices for a field, plus any historical value so old records stay readable. */
   const optionsFor = useCallback(
-    (fieldKey: string, includeValues: (string | null | undefined)[] = []) => {
-      const field = fields.find((f) => f.field_key === fieldKey);
+    (
+      fieldKey: string,
+      includeValues: (string | null | undefined)[] = [],
+      module: string = "workflow",
+    ) => {
+      const field = allFields.find(
+        (f) => f.field_key === fieldKey && (f.module ?? "workflow") === module,
+      );
       const list = field
         ? options
             .filter((o) => o.field_config_id === field.id && o.is_active)
@@ -75,7 +91,7 @@ export function useMasters() {
       );
       return [...list, ...extras];
     },
-    [fields, options],
+    [allFields, options],
   );
 
   const allOptionsFor = useCallback(
@@ -86,5 +102,17 @@ export function useMasters() {
     [options],
   );
 
-  return { roles, fields, options, optionsFor, allOptionsFor, loading, reload };
+  return {
+    roles,
+    fields,
+    enquiryFields,
+    fieldsFor,
+    allFields,
+    options,
+    optionsFor,
+    allOptionsFor,
+    loading,
+    reload,
+  };
 }
+

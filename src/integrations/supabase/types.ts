@@ -272,6 +272,72 @@ export type Database = {
           },
         ]
       }
+      enquiries: {
+        Row: {
+          client_fees: number | null
+          client_name: string
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          custom_fields: Json
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_by_name: string | null
+          enquiry_date: string
+          enquiry_status: string | null
+          fees: number | null
+          id: string
+          property: string | null
+          reference: string | null
+          remark: string | null
+          rent_deposit: string | null
+          updated_at: string
+          work_type: string | null
+        }
+        Insert: {
+          client_fees?: number | null
+          client_name: string
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          custom_fields?: Json
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_by_name?: string | null
+          enquiry_date?: string
+          enquiry_status?: string | null
+          fees?: number | null
+          id?: string
+          property?: string | null
+          reference?: string | null
+          remark?: string | null
+          rent_deposit?: string | null
+          updated_at?: string
+          work_type?: string | null
+        }
+        Update: {
+          client_fees?: number | null
+          client_name?: string
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          custom_fields?: Json
+          deleted_at?: string | null
+          deleted_by?: string | null
+          deleted_by_name?: string | null
+          enquiry_date?: string
+          enquiry_status?: string | null
+          fees?: number | null
+          id?: string
+          property?: string | null
+          reference?: string | null
+          remark?: string | null
+          rent_deposit?: string | null
+          updated_at?: string
+          work_type?: string | null
+        }
+        Relationships: []
+      }
       field_configs: {
         Row: {
           created_at: string
@@ -283,6 +349,7 @@ export type Database = {
           is_required: boolean
           is_system: boolean
           label: string
+          module: string
           options: Json
           show_in_registration: boolean
           show_in_workflow: boolean
@@ -299,6 +366,7 @@ export type Database = {
           is_required?: boolean
           is_system?: boolean
           label: string
+          module?: string
           options?: Json
           show_in_registration?: boolean
           show_in_workflow?: boolean
@@ -315,6 +383,7 @@ export type Database = {
           is_required?: boolean
           is_system?: boolean
           label?: string
+          module?: string
           options?: Json
           show_in_registration?: boolean
           show_in_workflow?: boolean

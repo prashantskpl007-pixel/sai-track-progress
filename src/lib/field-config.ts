@@ -98,6 +98,50 @@ export function buildFieldPatch(row: Record<string, any>, key: string, value: an
   return { custom_fields: { ...current, [key]: value } };
 }
 
+/* ------------------------------- Enquiries -------------------------------- */
+
+/** Real columns on `enquiries`. Anything else lives in `custom_fields`. */
+export const ENQUIRY_COLUMNS = new Set([
+  "enquiry_date",
+  "client_name",
+  "reference",
+  "work_type",
+  "property",
+  "rent_deposit",
+  "fees",
+  "client_fees",
+  "remark",
+  "enquiry_status",
+]);
+
+export const ENQUIRY_NUMERIC_COLUMNS = new Set(["fees", "client_fees"]);
+
+export function readEnquiryValue(row: Record<string, any>, key: string) {
+  if (ENQUIRY_COLUMNS.has(key)) return row[key];
+  const cf = row["custom_fields"];
+  return cf && typeof cf === "object" ? cf[key] : undefined;
+}
+
+/** Split a flat value map into real columns + custom_fields for `enquiries`. */
+export function splitEnquiryValues(values: Record<string, any>) {
+  const columns: Record<string, any> = {};
+  const custom: Record<string, any> = {};
+  for (const [key, raw] of Object.entries(values)) {
+    const value = raw === "" ? null : raw;
+    if (ENQUIRY_COLUMNS.has(key)) {
+      columns[key] = ENQUIRY_NUMERIC_COLUMNS.has(key)
+        ? value == null
+          ? null
+          : Number(value) || 0
+        : value;
+    } else {
+      custom[key] = value;
+    }
+  }
+  return { columns, custom };
+}
+
+
 /* ------------------------- Financial calculations ------------------------- */
 
 export type PaymentState = "pending" | "paid" | "excess";

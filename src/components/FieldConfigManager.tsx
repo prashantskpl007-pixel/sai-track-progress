@@ -106,12 +106,14 @@ export function FieldConfigManager({ module = "workflow" }: { module?: string })
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4 shadow-elegant">
         <div>
           <h3 className="font-display text-lg font-semibold">
-            Field &amp; Dropdown Configuration
+            {isEnquiry ? "Enquiry Field & Dropdown Configuration" : "Field & Dropdown Configuration"}
           </h3>
           <p className="text-sm text-muted-foreground">
-            The single place to control every field and every dropdown value used in Registration,
-            Edit Registration and the Workflow Dashboard.
+            {isEnquiry
+              ? "Control every field and dropdown value used in the Add / Edit Enquiry form and the Enquiry list."
+              : "The single place to control every field and every dropdown value used in Registration, Edit Registration and the Workflow Dashboard."}
           </p>
+
         </div>
         <Button
           className="bg-gold-gradient text-gold-foreground shadow-gold"

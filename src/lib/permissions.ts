@@ -1,11 +1,13 @@
 export const MODULES = [
   { key: "dashboard", label: "Dashboard" },
+  { key: "enquiry", label: "Enquiry" },
   { key: "workflow", label: "Workflow" },
   { key: "schedule", label: "Schedule" },
   { key: "analytics", label: "Analytics" },
   { key: "master", label: "Master" },
   { key: "reports", label: "Reports" },
 ] as const;
+
 
 export type ModuleKey = (typeof MODULES)[number]["key"];
 
@@ -39,6 +41,8 @@ export const FULL_ACTIONS: ModuleActions = {
 /** Modules that expose each action checkbox in the permission editor. */
 export const MODULE_ACTIONS: Record<ModuleKey, (keyof ModuleActions)[]> = {
   dashboard: ["can_view", "menu_visible"],
+  enquiry: ["can_view", "can_add", "can_edit", "can_delete", "can_export", "menu_visible"],
+
   workflow: ["can_view", "can_add", "can_edit", "can_delete", "menu_visible"],
   schedule: ["can_view", "can_add", "can_edit", "can_delete", "menu_visible"],
   analytics: ["can_view", "menu_visible"],

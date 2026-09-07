@@ -33,8 +33,12 @@ import { useMasters, notifyMastersChanged } from "@/hooks/use-masters";
 import { FIELD_TYPES } from "@/lib/permissions";
 import { hasOptions, type FieldConfig, type FieldOption } from "@/lib/field-config";
 
-export function FieldConfigManager() {
-  const { fields, allOptionsFor, reload } = useMasters();
+export function FieldConfigManager({ module = "workflow" }: { module?: string }) {
+  const { fieldsFor, allOptionsFor, reload } = useMasters();
+  const fields = fieldsFor(module);
+  const isEnquiry = module === "enquiry";
+  const formLabel = isEnquiry ? "Enquiry Form" : "Registration";
+  const tableLabel = isEnquiry ? "Enquiry Table" : "Workflow";
   const upsertFn = useServerFn(upsertFieldConfig);
   const deleteFn = useServerFn(deleteFieldConfig);
   const reorderFn = useServerFn(reorderFieldConfigs);
@@ -42,6 +46,7 @@ export function FieldConfigManager() {
   const [editing, setEditing] = useState<FieldConfig | null>(null);
   const [open, setOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<FieldConfig | null>(null);
+
 
   async function refresh() {
     await reload();
@@ -101,12 +106,14 @@ export function FieldConfigManager() {
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4 shadow-elegant">
         <div>
           <h3 className="font-display text-lg font-semibold">
-            Field &amp; Dropdown Configuration
+            {isEnquiry ? "Enquiry Field & Dropdown Configuration" : "Field & Dropdown Configuration"}
           </h3>
           <p className="text-sm text-muted-foreground">
-            The single place to control every field and every dropdown value used in Registration,
-            Edit Registration and the Workflow Dashboard.
+            {isEnquiry
+              ? "Control every field and dropdown value used in the Add / Edit Enquiry form and the Enquiry list."
+              : "The single place to control every field and every dropdown value used in Registration, Edit Registration and the Workflow Dashboard."}
           </p>
+
         </div>
         <Button
           className="bg-gold-gradient text-gold-foreground shadow-gold"
@@ -129,8 +136,9 @@ export function FieldConfigManager() {
                 <th className="px-3 py-3">Type</th>
                 <th className="px-3 py-3">Enabled</th>
                 <th className="px-3 py-3">Mandatory</th>
-                <th className="px-3 py-3">Registration</th>
-                <th className="px-3 py-3">Workflow</th>
+                <th className="px-3 py-3">{formLabel}</th>
+                <th className="px-3 py-3">{tableLabel}</th>
+
                 <th className="px-3 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -230,20 +238,25 @@ export function FieldConfigManager() {
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Balance, Excess Amount, Payment Status and Collection % are system-generated from Fees and
-        Amount Received — they are always read-only and cannot be configured here.
-      </p>
+      {!isEnquiry && (
+        <p className="text-xs text-muted-foreground">
+          Balance, Excess Amount, Payment Status and Collection % are system-generated from Fees and
+          Amount Received — they are always read-only and cannot be configured here.
+        </p>
+      )}
 
       {open && (
         <FieldDialog
           field={editing}
+          formLabel={formLabel}
+          tableLabel={tableLabel}
           onClose={() => setOpen(false)}
           onSave={async (v) => {
             try {
               await upsertFn({
                 data: {
                   id: editing?.id ?? null,
+                  module: module as "workflow" | "enquiry",
                   label: v.label,
                   fieldType: v.fieldType,
                   options: [],
@@ -254,6 +267,7 @@ export function FieldConfigManager() {
                   isEnabled: editing ? editing.is_enabled : true,
                 },
               });
+
               setOpen(false);
               await refresh();
               toast.success("Field saved");
@@ -278,10 +292,14 @@ export function FieldConfigManager() {
 
 function FieldDialog({
   field,
+  formLabel = "Registration",
+  tableLabel = "Workflow",
   onClose,
   onSave,
 }: {
   field: FieldConfig | null;
+  formLabel?: string;
+  tableLabel?: string;
   onClose: () => void;
   onSave: (v: {
     label: string;
@@ -292,6 +310,7 @@ function FieldDialog({
     showInWorkflow: boolean;
   }) => Promise<void>;
 }) {
+
   const [label, setLabel] = useState(field?.label ?? "");
   const [fieldType, setFieldType] = useState(field?.field_type ?? "text");
   const [defaultValue, setDefaultValue] = useState(field?.default_value ?? "");
@@ -363,10 +382,11 @@ function FieldDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="registration">Registration form only</SelectItem>
-                <SelectItem value="workflow">Workflow dashboard only</SelectItem>
+                <SelectItem value="registration">{formLabel} only</SelectItem>
+                <SelectItem value="workflow">{tableLabel} only</SelectItem>
                 <SelectItem value="both">Both</SelectItem>
               </SelectContent>
+
             </Select>
           </div>
           <div className="flex items-center gap-3">

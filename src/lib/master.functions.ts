@@ -86,6 +86,7 @@ export const deleteMasterItem = createServerFn({ method: "POST" })
 
 const FieldInput = z.object({
   id: z.string().uuid().optional().nullable(),
+  module: z.enum(["workflow", "enquiry"]).optional(),
   fieldKey: z.string().trim().min(1).max(60).optional().nullable(),
   label: z.string().trim().min(1).max(120),
   fieldType: z.string().trim().min(1).max(30),
@@ -97,6 +98,7 @@ const FieldInput = z.object({
   showInWorkflow: z.boolean().optional(),
   sortOrder: z.number().int().optional().nullable(),
 });
+
 
 
 export const upsertFieldConfig = createServerFn({ method: "POST" })

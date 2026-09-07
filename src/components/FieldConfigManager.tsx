@@ -292,10 +292,14 @@ export function FieldConfigManager({ module = "workflow" }: { module?: string })
 
 function FieldDialog({
   field,
+  formLabel = "Registration",
+  tableLabel = "Workflow",
   onClose,
   onSave,
 }: {
   field: FieldConfig | null;
+  formLabel?: string;
+  tableLabel?: string;
   onClose: () => void;
   onSave: (v: {
     label: string;
@@ -306,6 +310,7 @@ function FieldDialog({
     showInWorkflow: boolean;
   }) => Promise<void>;
 }) {
+
   const [label, setLabel] = useState(field?.label ?? "");
   const [fieldType, setFieldType] = useState(field?.field_type ?? "text");
   const [defaultValue, setDefaultValue] = useState(field?.default_value ?? "");

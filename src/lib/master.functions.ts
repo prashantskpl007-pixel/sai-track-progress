@@ -129,17 +129,20 @@ export const upsertFieldConfig = createServerFn({ method: "POST" })
       return row;
     }
 
+    const module = data.module ?? "workflow";
     const key =
       (data.fieldKey ?? data.label)
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/^_+|_+$/g, "") || `field_${Date.now()}`;
-    const { count } = await context.supabase
-      .from("field_configs")
-      .select("*", { count: "exact", head: true });
+    const { count } = await (context.supabase.from("field_configs") as any)
+      .select("*", { count: "exact", head: true })
+      .eq("module", module);
+    payload["module"] = module;
     payload["field_key"] = key;
     payload["is_system"] = false;
     if (data.sortOrder == null) payload["sort_order"] = (count ?? 0) + 1;
+
 
     const { data: row, error } = await (context.supabase.from("field_configs") as any)
       .insert(payload)

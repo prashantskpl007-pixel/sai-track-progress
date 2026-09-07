@@ -238,20 +238,25 @@ export function FieldConfigManager({ module = "workflow" }: { module?: string })
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Balance, Excess Amount, Payment Status and Collection % are system-generated from Fees and
-        Amount Received — they are always read-only and cannot be configured here.
-      </p>
+      {!isEnquiry && (
+        <p className="text-xs text-muted-foreground">
+          Balance, Excess Amount, Payment Status and Collection % are system-generated from Fees and
+          Amount Received — they are always read-only and cannot be configured here.
+        </p>
+      )}
 
       {open && (
         <FieldDialog
           field={editing}
+          formLabel={formLabel}
+          tableLabel={tableLabel}
           onClose={() => setOpen(false)}
           onSave={async (v) => {
             try {
               await upsertFn({
                 data: {
                   id: editing?.id ?? null,
+                  module: module as "workflow" | "enquiry",
                   label: v.label,
                   fieldType: v.fieldType,
                   options: [],
@@ -262,6 +267,7 @@ export function FieldConfigManager({ module = "workflow" }: { module?: string })
                   isEnabled: editing ? editing.is_enabled : true,
                 },
               });
+
               setOpen(false);
               await refresh();
               toast.success("Field saved");

@@ -382,10 +382,11 @@ function FieldDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="registration">Registration form only</SelectItem>
-                <SelectItem value="workflow">Workflow dashboard only</SelectItem>
+                <SelectItem value="registration">{formLabel} only</SelectItem>
+                <SelectItem value="workflow">{tableLabel} only</SelectItem>
                 <SelectItem value="both">Both</SelectItem>
               </SelectContent>
+
             </Select>
           </div>
           <div className="flex items-center gap-3">

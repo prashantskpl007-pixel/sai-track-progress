@@ -33,8 +33,12 @@ import { useMasters, notifyMastersChanged } from "@/hooks/use-masters";
 import { FIELD_TYPES } from "@/lib/permissions";
 import { hasOptions, type FieldConfig, type FieldOption } from "@/lib/field-config";
 
-export function FieldConfigManager() {
-  const { fields, allOptionsFor, reload } = useMasters();
+export function FieldConfigManager({ module = "workflow" }: { module?: string }) {
+  const { fieldsFor, allOptionsFor, reload } = useMasters();
+  const fields = fieldsFor(module);
+  const isEnquiry = module === "enquiry";
+  const formLabel = isEnquiry ? "Enquiry Form" : "Registration";
+  const tableLabel = isEnquiry ? "Enquiry Table" : "Workflow";
   const upsertFn = useServerFn(upsertFieldConfig);
   const deleteFn = useServerFn(deleteFieldConfig);
   const reorderFn = useServerFn(reorderFieldConfigs);
@@ -42,6 +46,7 @@ export function FieldConfigManager() {
   const [editing, setEditing] = useState<FieldConfig | null>(null);
   const [open, setOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<FieldConfig | null>(null);
+
 
   async function refresh() {
     await reload();

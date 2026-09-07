@@ -136,8 +136,9 @@ export function FieldConfigManager({ module = "workflow" }: { module?: string })
                 <th className="px-3 py-3">Type</th>
                 <th className="px-3 py-3">Enabled</th>
                 <th className="px-3 py-3">Mandatory</th>
-                <th className="px-3 py-3">Registration</th>
-                <th className="px-3 py-3">Workflow</th>
+                <th className="px-3 py-3">{formLabel}</th>
+                <th className="px-3 py-3">{tableLabel}</th>
+
                 <th className="px-3 py-3 text-right">Actions</th>
               </tr>
             </thead>

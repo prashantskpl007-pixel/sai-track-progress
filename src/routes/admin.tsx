@@ -99,6 +99,8 @@ import {
 import { KycPanel } from "@/components/KycPanel";
 import { WorkflowDashboard } from "@/components/WorkflowDashboard";
 import { MasterModule } from "@/components/MasterModule";
+import { EnquiryModule } from "@/components/EnquiryModule";
+
 import { useMasters } from "@/hooks/use-masters";
 import { deriveCommission } from "@/lib/field-config";
 

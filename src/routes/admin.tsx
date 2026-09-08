@@ -481,8 +481,14 @@ function AdminPanel() {
             <TabsTrigger value="analytics"><BarChart3 className="mr-1.5 h-4 w-4" />Analytics</TabsTrigger>
           </TabsList>
 
+          {/* ===== ENQUIRY ===== */}
+          <TabsContent value="enquiry" className="space-y-4">
+            <EnquiryModule />
+          </TabsContent>
+
           {/* ===== WORKFLOW DASHBOARD (primary working screen) ===== */}
           <TabsContent value="workflow" className="space-y-4">
+
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4 shadow-elegant">
               <div>
                 <h2 className="font-display text-lg font-semibold">Workflow Dashboard</h2>

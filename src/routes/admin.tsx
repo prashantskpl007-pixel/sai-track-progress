@@ -468,7 +468,11 @@ function AdminPanel() {
       <main className="mx-auto max-w-7xl px-4 py-8">
         <Tabs defaultValue="workflow" className="w-full">
           <TabsList className="mb-6 flex w-full flex-wrap justify-start gap-1 bg-secondary p-1">
+            {(perm.isOwner || perm.can("enquiry", "can_view")) && (
+              <TabsTrigger value="enquiry"><FileText className="mr-1.5 h-4 w-4" />Enquiry</TabsTrigger>
+            )}
             <TabsTrigger value="workflow"><StickyNote className="mr-1.5 h-4 w-4" />Workflow</TabsTrigger>
+
             <TabsTrigger value="overview"><BarChart3 className="mr-1.5 h-4 w-4" />Overview</TabsTrigger>
             
             <TabsTrigger value="master"><UserCog className="mr-1.5 h-4 w-4" />Master</TabsTrigger>

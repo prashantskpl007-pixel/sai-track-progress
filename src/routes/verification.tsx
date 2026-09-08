@@ -51,7 +51,7 @@ import { WhatsAppFloatingButton } from "@/components/WhatsAppButton";
 export const Route = createFileRoute("/verification")({
   head: () => ({
     meta: [
-      { title: "Verification Partner — Sai Enterprise" },
+      { title: "Verification Partner — SMART FUTURE GROUP" },
       { name: "description", content: "Verification Partner dashboard for assigned cases." },
     ],
   }),
@@ -164,7 +164,7 @@ function VerificationDashboard() {
             </div>
             <div>
               <h1 className="font-display text-lg font-bold">Verification Dashboard</h1>
-              <p className="text-xs text-primary-foreground/70">Sai Enterprise — Partner Portal</p>
+              <p className="text-xs text-primary-foreground/70">SMART FUTURE GROUP — Partner Portal</p>
             </div>
           </div>
           <Button

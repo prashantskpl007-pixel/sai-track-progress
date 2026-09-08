@@ -12,7 +12,7 @@ export type RegistrationStatus =
   | "agreement_ready";
 
 export const STATUS_STEPS: { key: RegistrationStatus; label: string; description: string }[] = [
-  { key: "application_created", label: "Application Created", description: "Your file has been opened by Sai Enterprise." },
+  { key: "application_created", label: "Application Created", description: "Your file has been opened by SMART FUTURE GROUP." },
   { key: "documents_received", label: "Documents Received", description: "All required documents have been collected." },
   { key: "kyc_uploaded", label: "KYC Documents Uploaded", description: "Your KYC documents have been uploaded and recorded." },
   { key: "noc_initiated", label: "NOC / Police Verification Initiated", description: "Verification has been assigned to a partner." },

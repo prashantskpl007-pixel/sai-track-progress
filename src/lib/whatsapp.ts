@@ -6,7 +6,7 @@ export function buildWhatsAppLink(opts: {
   customerName?: string | null;
   mobile?: string | null;
 }) {
-  const parts = ["Hello Sai Enterprise,", "", "I need assistance regarding my agreement registration."];
+  const parts = ["Hello SMART FUTURE GROUP,", "", "I need assistance regarding my agreement registration."];
   if (opts.applicationNumber) parts.push("", `Application Number: ${opts.applicationNumber}`);
   if (opts.customerName) parts.push(`Customer Name: ${opts.customerName}`);
   if (!opts.applicationNumber && opts.mobile) parts.push("", `Mobile: ${opts.mobile}`);

@@ -1,0 +1,16 @@
+{
+  "name": "SMART FUTURE GROUP",
+  "short_name": "SMART FUTURE GROUP",
+  "description": "Internal workflow management for agreement and document registration.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1f3a",
+  "theme_color": "#1a1f3a",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}

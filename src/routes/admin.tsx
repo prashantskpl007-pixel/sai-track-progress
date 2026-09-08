@@ -111,7 +111,7 @@ import {
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
-    meta: [{ title: "Admin — Sai Enterprise" }, { name: "robots", content: "noindex" }],
+    meta: [{ title: "Admin — SMART FUTURE GROUP" }, { name: "robots", content: "noindex" }],
   }),
   component: AdminPanel,
 });
@@ -443,7 +443,7 @@ function AdminPanel() {
               <FileCheck className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-xs uppercase tracking-widest text-gold">Sai Enterprise</p>
+              <p className="text-xs uppercase tracking-widest text-gold">SMART FUTURE GROUP</p>
               <p className="font-display text-base font-semibold">Admin Panel</p>
             </div>
           </div>

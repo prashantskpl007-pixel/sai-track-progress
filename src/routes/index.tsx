@@ -10,13 +10,13 @@ import { supabase } from "@/integrations/supabase/client";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Sign in — Sai Enterprise Workflow" },
+      { title: "Sign in — SMART FUTURE GROUP Workflow" },
       {
         name: "description",
         content:
-          "Sai Enterprise internal workflow management system — sign in to manage registrations, fees and verification.",
+          "SMART FUTURE GROUP internal workflow management system — sign in to manage registrations, fees and verification.",
       },
-      { property: "og:title", content: "Sai Enterprise Workflow" },
+      { property: "og:title", content: "SMART FUTURE GROUP Workflow" },
       {
         property: "og:description",
         content: "Internal workflow management for agreement and document registration.",
@@ -89,7 +89,7 @@ function LoginPage() {
           <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gold-gradient">
             <FileCheck className="h-7 w-7 text-primary" />
           </div>
-          <h1 className="mt-4 font-display text-2xl font-bold">Sai Enterprise</h1>
+          <h1 className="mt-4 font-display text-2xl font-bold">SMART FUTURE GROUP</h1>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
             Workflow Management
           </p>

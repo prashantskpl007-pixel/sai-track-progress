@@ -99,6 +99,8 @@ import {
 import { KycPanel } from "@/components/KycPanel";
 import { WorkflowDashboard } from "@/components/WorkflowDashboard";
 import { MasterModule } from "@/components/MasterModule";
+import { EnquiryModule } from "@/components/EnquiryModule";
+
 import { useMasters } from "@/hooks/use-masters";
 import { deriveCommission } from "@/lib/field-config";
 
@@ -468,7 +470,11 @@ function AdminPanel() {
       <main className="mx-auto max-w-7xl px-4 py-8">
         <Tabs defaultValue="workflow" className="w-full">
           <TabsList className="mb-6 flex w-full flex-wrap justify-start gap-1 bg-secondary p-1">
+            {(perm.isOwner || perm.can("enquiry", "can_view")) && (
+              <TabsTrigger value="enquiry"><FileText className="mr-1.5 h-4 w-4" />Enquiry</TabsTrigger>
+            )}
             <TabsTrigger value="workflow"><StickyNote className="mr-1.5 h-4 w-4" />Workflow</TabsTrigger>
+
             <TabsTrigger value="overview"><BarChart3 className="mr-1.5 h-4 w-4" />Overview</TabsTrigger>
             
             <TabsTrigger value="master"><UserCog className="mr-1.5 h-4 w-4" />Master</TabsTrigger>
@@ -477,8 +483,14 @@ function AdminPanel() {
             <TabsTrigger value="analytics"><BarChart3 className="mr-1.5 h-4 w-4" />Analytics</TabsTrigger>
           </TabsList>
 
+          {/* ===== ENQUIRY ===== */}
+          <TabsContent value="enquiry" className="space-y-4">
+            <EnquiryModule />
+          </TabsContent>
+
           {/* ===== WORKFLOW DASHBOARD (primary working screen) ===== */}
           <TabsContent value="workflow" className="space-y-4">
+
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4 shadow-elegant">
               <div>
                 <h2 className="font-display text-lg font-semibold">Workflow Dashboard</h2>

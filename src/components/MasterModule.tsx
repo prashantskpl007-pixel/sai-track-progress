@@ -46,13 +46,18 @@ export function MasterModule({
     <Tabs defaultValue="fields" className="w-full">
       <TabsList className="mb-6 flex w-full flex-wrap justify-start gap-1 bg-secondary p-1">
         <TabsTrigger value="fields">Field Configuration</TabsTrigger>
+        <TabsTrigger value="enquiry-fields">Enquiry Fields</TabsTrigger>
         <TabsTrigger value="permissions">Role Permissions</TabsTrigger>
         <TabsTrigger value="staff">Staff Management</TabsTrigger>
         <TabsTrigger value="roles">Role Management</TabsTrigger>
       </TabsList>
       <TabsContent value="fields">
-        <FieldConfigManager />
+        <FieldConfigManager module="workflow" />
       </TabsContent>
+      <TabsContent value="enquiry-fields">
+        <FieldConfigManager module="enquiry" />
+      </TabsContent>
+
       <TabsContent value="permissions">
         <PermissionsManager />
       </TabsContent>

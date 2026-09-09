@@ -566,38 +566,66 @@ export function WorkflowDashboard({
         )}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border bg-card shadow-elegant">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-secondary text-left text-xs uppercase tracking-wider text-muted-foreground">
+      <div className="overflow-hidden rounded-xl border bg-card shadow-elegant">
+        <div className="max-h-[calc(100vh-230px)] overflow-auto">
+          <table
+            className="text-[13px]"
+            style={{ tableLayout: "fixed", width: Math.max(totalWidth, 100) }}
+          >
+            <colgroup>
+              {visibleColumns.map((col) => (
+                <col key={col.key} style={{ width: widthOf(col.key) }} />
+              ))}
+              {canDelete && <col style={{ width: 56 }} />}
+            </colgroup>
+            <thead className="sticky top-0 z-30 bg-secondary text-left text-[11px] uppercase tracking-wider text-muted-foreground">
               <tr>
-                {columns.map((col) => (
-                  <th key={col.key} className="px-3 py-3">{col.label}</th>
+                {visibleColumns.map((col, i) => (
+                  <th
+                    key={col.key}
+                    className={`relative border-b px-2 py-2 align-bottom ${
+                      stickyLeft[col.key] !== undefined ? "sticky z-40 bg-secondary" : ""
+                    }`}
+                    style={stickyLeft[col.key] !== undefined ? { left: stickyLeft[col.key] } : undefined}
+                  >
+                    <span className="block truncate" title={col.label}>{col.label}</span>
+                    <span
+                      role="separator"
+                      onMouseDown={(e) => startResize(e, col.key)}
+                      className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none hover:bg-gold"
+                    />
+                  </th>
                 ))}
-                {canDelete && <th className="px-3 py-3 text-right">Delete</th>}
+                {canDelete && <th className="border-b px-2 py-2 text-right">Del</th>}
               </tr>
             </thead>
 
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length + (canDelete ? 1 : 0)} className="py-10 text-center text-muted-foreground">
+                  <td colSpan={visibleColumns.length + (canDelete ? 1 : 0)} className="py-10 text-center text-muted-foreground">
                     No records match the current filters.
                   </td>
                 </tr>
               ) : (
                 rows.map((c) => (
                   <tr key={c.id} className="border-t align-top hover:bg-muted/30">
-                    {columns.map((col) => (
-                      <td key={col.key} className={`px-3 py-2 ${col.key === "property_address" ? "max-w-64" : ""}`}>
+                    {visibleColumns.map((col) => (
+                      <td
+                        key={col.key}
+                        className={`overflow-hidden px-2 py-1 align-top break-words ${
+                          stickyLeft[col.key] !== undefined ? "sticky z-20 bg-card" : ""
+                        }`}
+                        style={stickyLeft[col.key] !== undefined ? { left: stickyLeft[col.key] } : undefined}
+                      >
                         {col.kind === "field"
                           ? renderFieldCell(c, col.field)
                           : renderDerivedCell(c, col.key)}
                       </td>
                     ))}
                     {canDelete && (
-                      <td className="px-3 py-2 text-right">
-                        <Button size="sm" variant="ghost" title="Delete record" onClick={() => setDeleteFor(c)}>
+                      <td className="px-1 py-1 text-right">
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Delete record" onClick={() => setDeleteFor(c)}>
                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
                         </Button>
                       </td>

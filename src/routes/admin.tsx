@@ -437,7 +437,7 @@ function AdminPanel() {
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-navy-gradient text-primary-foreground">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
+        <div className="flex w-full items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold-gradient">
               <FileCheck className="h-5 w-5 text-primary" />
@@ -467,9 +467,9 @@ function AdminPanel() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-8">
+      <main className="w-full px-3 py-4 sm:px-4">
         <Tabs defaultValue="workflow" className="w-full">
-          <TabsList className="mb-6 flex w-full flex-wrap justify-start gap-1 bg-secondary p-1">
+          <TabsList className="mb-3 flex w-full flex-wrap justify-start gap-1 bg-secondary p-1">
             {(perm.isOwner || perm.can("enquiry", "can_view")) && (
               <TabsTrigger value="enquiry"><FileText className="mr-1.5 h-4 w-4" />Enquiry</TabsTrigger>
             )}
@@ -489,18 +489,18 @@ function AdminPanel() {
           </TabsContent>
 
           {/* ===== WORKFLOW DASHBOARD (primary working screen) ===== */}
-          <TabsContent value="workflow" className="space-y-4">
+          <TabsContent value="workflow" className="space-y-2">
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-4 shadow-elegant">
-              <div>
-                <h2 className="font-display text-lg font-semibold">Workflow Dashboard</h2>
-                <p className="text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-3 py-2 shadow-elegant">
+              <div className="min-w-0">
+                <h2 className="font-display text-base font-semibold">Workflow Dashboard</h2>
+                <p className="truncate text-xs text-muted-foreground">
                   Every field below is editable — click a cell to change it. Balance = Fees − Received.
                 </p>
               </div>
               <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                 <DialogTrigger asChild>
-                  <Button size="lg" className="bg-gold-gradient text-gold-foreground shadow-gold">
+                  <Button size="sm" className="h-9 shrink-0 bg-gold-gradient text-gold-foreground shadow-gold">
                     <Plus className="mr-2 h-4 w-4" /> New Registration
                   </Button>
                 </DialogTrigger>

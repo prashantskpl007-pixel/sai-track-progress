@@ -1,4 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Columns3 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { History, Loader2, MessageSquare, Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import {
@@ -124,7 +133,7 @@ function EditableCell({
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           if (e.key === "Escape") setEditing(false);
         }}
-        className={`h-8 min-w-24 text-sm ${className}`}
+        className={`h-8 w-full min-w-0 text-sm ${className}`}
       />
     );
   }
@@ -156,7 +165,7 @@ function SelectCell({
 }) {
   return (
     <Select value={value ?? undefined} disabled={disabled} onValueChange={(v) => onSave(v)}>
-      <SelectTrigger className="h-8 min-w-36 border-transparent bg-transparent px-1.5 text-sm hover:bg-muted">
+      <SelectTrigger className="h-8 w-full min-w-0 border-transparent bg-transparent px-1.5 text-sm hover:bg-muted">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -243,6 +252,66 @@ export function WorkflowDashboard({
     if (!commissionInserted && hasCommissionPaid) cols.push(...commissionDerived);
     return cols;
   }, [fields]);
+
+  /* ------------------- Column widths / visibility / sticky ------------------ */
+  const NARROW = new Set([
+    "registration_date", "token_number", "appointment_date", "appointment_time",
+    "payment_date", "total_amount", "payment_received", "balance_amount",
+    "excess_amount", "collection_pct", "source_commission", "commission_paid",
+    "commission_pending", "mobile_number",
+  ]);
+  const WIDE = new Set(["customer_name", "property_address", "notes", "remarks"]);
+
+  function defaultWidth(key: string) {
+    if (key === "notes") return 110;
+    if (NARROW.has(key)) return 110;
+    if (WIDE.has(key)) return 220;
+    return 160;
+  }
+
+  const STICKY_KEYS = ["registration_date", "token_number", "source_agent"];
+
+  const [colWidths, setColWidths] = useState<Record<string, number>>({});
+  const [hidden, setHidden] = useState<Record<string, boolean>>({});
+
+  const widthOf = (key: string) => colWidths[key] ?? defaultWidth(key);
+
+  const visibleColumns = useMemo(
+    () => columns.filter((c) => !hidden[c.key]),
+    [columns, hidden],
+  );
+
+  const totalWidth = useMemo(
+    () => visibleColumns.reduce((s, c) => s + widthOf(c.key), 0) + (canDelete ? 56 : 0),
+    [visibleColumns, colWidths, canDelete],
+  );
+
+  const stickyLeft = useMemo(() => {
+    const map: Record<string, number> = {};
+    let offset = 0;
+    for (const col of visibleColumns) {
+      if (!STICKY_KEYS.includes(col.key)) break;
+      map[col.key] = offset;
+      offset += widthOf(col.key);
+    }
+    return map;
+  }, [visibleColumns, colWidths]);
+
+  function startResize(e: ReactMouseEvent, key: string) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = widthOf(key);
+    const move = (ev: MouseEvent) => {
+      const next = Math.max(70, startW + (ev.clientX - startX));
+      setColWidths((prev) => ({ ...prev, [key]: next }));
+    };
+    const up = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  }
 
   const dropdownFilterFields = useMemo(
     () => fields.filter((f) => f.is_enabled && f.show_in_workflow && hasOptions(f)),
@@ -479,9 +548,9 @@ export function WorkflowDashboard({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Compact search bar */}
-      <div className="rounded-2xl border bg-card p-2.5 shadow-elegant">
+      <div className="rounded-xl border bg-card p-2 shadow-elegant">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-48 flex-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -506,6 +575,38 @@ export function WorkflowDashboard({
               </span>
             )}
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9">
+                <Columns3 className="mr-1.5 h-3.5 w-3.5" />
+                Columns
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-80 w-60 overflow-y-auto">
+              <DropdownMenuLabel>Show columns</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {columns.map((col) => (
+                <DropdownMenuCheckboxItem
+                  key={col.key}
+                  checked={!hidden[col.key]}
+                  onSelect={(e) => e.preventDefault()}
+                  onCheckedChange={(v) =>
+                    setHidden((prev) => ({ ...prev, [col.key]: !v }))
+                  }
+                >
+                  {col.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+              <DropdownMenuSeparator />
+              <button
+                type="button"
+                className="w-full px-2 py-1.5 text-left text-sm hover:bg-muted"
+                onClick={() => { setHidden({}); setColWidths({}); }}
+              >
+                Reset columns
+              </button>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {(activeFilterCount > 0 || q) && (
             <Button
               variant="ghost"
@@ -566,38 +667,66 @@ export function WorkflowDashboard({
         )}
       </div>
 
-      <div className="overflow-hidden rounded-2xl border bg-card shadow-elegant">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-secondary text-left text-xs uppercase tracking-wider text-muted-foreground">
+      <div className="overflow-hidden rounded-xl border bg-card shadow-elegant">
+        <div className="max-h-[calc(100vh-230px)] overflow-auto">
+          <table
+            className="text-[13px]"
+            style={{ tableLayout: "fixed", width: Math.max(totalWidth, 100) }}
+          >
+            <colgroup>
+              {visibleColumns.map((col) => (
+                <col key={col.key} style={{ width: widthOf(col.key) }} />
+              ))}
+              {canDelete && <col style={{ width: 56 }} />}
+            </colgroup>
+            <thead className="sticky top-0 z-30 bg-secondary text-left text-[11px] uppercase tracking-wider text-muted-foreground">
               <tr>
-                {columns.map((col) => (
-                  <th key={col.key} className="px-3 py-3">{col.label}</th>
+                {visibleColumns.map((col, i) => (
+                  <th
+                    key={col.key}
+                    className={`relative border-b px-2 py-2 align-bottom ${
+                      stickyLeft[col.key] !== undefined ? "sticky z-40 bg-secondary" : ""
+                    }`}
+                    style={stickyLeft[col.key] !== undefined ? { left: stickyLeft[col.key] } : undefined}
+                  >
+                    <span className="block truncate" title={col.label}>{col.label}</span>
+                    <span
+                      role="separator"
+                      onMouseDown={(e) => startResize(e, col.key)}
+                      className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize select-none hover:bg-gold"
+                    />
+                  </th>
                 ))}
-                {canDelete && <th className="px-3 py-3 text-right">Delete</th>}
+                {canDelete && <th className="border-b px-2 py-2 text-right">Del</th>}
               </tr>
             </thead>
 
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length + (canDelete ? 1 : 0)} className="py-10 text-center text-muted-foreground">
+                  <td colSpan={visibleColumns.length + (canDelete ? 1 : 0)} className="py-10 text-center text-muted-foreground">
                     No records match the current filters.
                   </td>
                 </tr>
               ) : (
                 rows.map((c) => (
                   <tr key={c.id} className="border-t align-top hover:bg-muted/30">
-                    {columns.map((col) => (
-                      <td key={col.key} className={`px-3 py-2 ${col.key === "property_address" ? "max-w-64" : ""}`}>
+                    {visibleColumns.map((col) => (
+                      <td
+                        key={col.key}
+                        className={`overflow-hidden px-2 py-1 align-top break-words ${
+                          stickyLeft[col.key] !== undefined ? "sticky z-20 bg-card" : ""
+                        }`}
+                        style={stickyLeft[col.key] !== undefined ? { left: stickyLeft[col.key] } : undefined}
+                      >
                         {col.kind === "field"
                           ? renderFieldCell(c, col.field)
                           : renderDerivedCell(c, col.key)}
                       </td>
                     ))}
                     {canDelete && (
-                      <td className="px-3 py-2 text-right">
-                        <Button size="sm" variant="ghost" title="Delete record" onClick={() => setDeleteFor(c)}>
+                      <td className="px-1 py-1 text-right">
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Delete record" onClick={() => setDeleteFor(c)}>
                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
                         </Button>
                       </td>

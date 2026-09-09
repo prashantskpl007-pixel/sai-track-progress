@@ -297,7 +297,7 @@ export function WorkflowDashboard({
     return map;
   }, [visibleColumns, colWidths]);
 
-  function startResize(e: React.MouseEvent, key: string) {
+  function startResize(e: ReactMouseEvent, key: string) {
     e.preventDefault();
     const startX = e.clientX;
     const startW = widthOf(key);

@@ -244,6 +244,66 @@ export function WorkflowDashboard({
     return cols;
   }, [fields]);
 
+  /* ------------------- Column widths / visibility / sticky ------------------ */
+  const NARROW = new Set([
+    "registration_date", "token_number", "appointment_date", "appointment_time",
+    "payment_date", "total_amount", "payment_received", "balance_amount",
+    "excess_amount", "collection_pct", "source_commission", "commission_paid",
+    "commission_pending", "mobile_number",
+  ]);
+  const WIDE = new Set(["customer_name", "property_address", "notes", "remarks"]);
+
+  function defaultWidth(key: string) {
+    if (key === "notes") return 110;
+    if (NARROW.has(key)) return 110;
+    if (WIDE.has(key)) return 220;
+    return 160;
+  }
+
+  const STICKY_KEYS = ["registration_date", "token_number", "source_agent"];
+
+  const [colWidths, setColWidths] = useState<Record<string, number>>({});
+  const [hidden, setHidden] = useState<Record<string, boolean>>({});
+
+  const widthOf = (key: string) => colWidths[key] ?? defaultWidth(key);
+
+  const visibleColumns = useMemo(
+    () => columns.filter((c) => !hidden[c.key]),
+    [columns, hidden],
+  );
+
+  const totalWidth = useMemo(
+    () => visibleColumns.reduce((s, c) => s + widthOf(c.key), 0) + (canDelete ? 56 : 0),
+    [visibleColumns, colWidths, canDelete],
+  );
+
+  const stickyLeft = useMemo(() => {
+    const map: Record<string, number> = {};
+    let offset = 0;
+    for (const col of visibleColumns) {
+      if (!STICKY_KEYS.includes(col.key)) break;
+      map[col.key] = offset;
+      offset += widthOf(col.key);
+    }
+    return map;
+  }, [visibleColumns, colWidths]);
+
+  function startResize(e: React.MouseEvent, key: string) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = widthOf(key);
+    const move = (ev: MouseEvent) => {
+      const next = Math.max(70, startW + (ev.clientX - startX));
+      setColWidths((prev) => ({ ...prev, [key]: next }));
+    };
+    const up = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  }
+
   const dropdownFilterFields = useMemo(
     () => fields.filter((f) => f.is_enabled && f.show_in_workflow && hasOptions(f)),
     [fields],

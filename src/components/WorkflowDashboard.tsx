@@ -133,7 +133,7 @@ function EditableCell({
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           if (e.key === "Escape") setEditing(false);
         }}
-        className={`h-8 min-w-24 text-sm ${className}`}
+        className={`h-8 w-full min-w-0 text-sm ${className}`}
       />
     );
   }
@@ -165,7 +165,7 @@ function SelectCell({
 }) {
   return (
     <Select value={value ?? undefined} disabled={disabled} onValueChange={(v) => onSave(v)}>
-      <SelectTrigger className="h-8 min-w-36 border-transparent bg-transparent px-1.5 text-sm hover:bg-muted">
+      <SelectTrigger className="h-8 w-full min-w-0 border-transparent bg-transparent px-1.5 text-sm hover:bg-muted">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -548,9 +548,9 @@ export function WorkflowDashboard({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* Compact search bar */}
-      <div className="rounded-2xl border bg-card p-2.5 shadow-elegant">
+      <div className="rounded-xl border bg-card p-2 shadow-elegant">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-48 flex-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />

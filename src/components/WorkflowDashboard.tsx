@@ -575,6 +575,38 @@ export function WorkflowDashboard({
               </span>
             )}
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9">
+                <Columns3 className="mr-1.5 h-3.5 w-3.5" />
+                Columns
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-80 w-60 overflow-y-auto">
+              <DropdownMenuLabel>Show columns</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {columns.map((col) => (
+                <DropdownMenuCheckboxItem
+                  key={col.key}
+                  checked={!hidden[col.key]}
+                  onSelect={(e) => e.preventDefault()}
+                  onCheckedChange={(v) =>
+                    setHidden((prev) => ({ ...prev, [col.key]: !v }))
+                  }
+                >
+                  {col.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+              <DropdownMenuSeparator />
+              <button
+                type="button"
+                className="w-full px-2 py-1.5 text-left text-sm hover:bg-muted"
+                onClick={() => { setHidden({}); setColWidths({}); }}
+              >
+                Reset columns
+              </button>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {(activeFilterCount > 0 || q) && (
             <Button
               variant="ghost"

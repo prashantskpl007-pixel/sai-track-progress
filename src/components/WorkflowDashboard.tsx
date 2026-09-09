@@ -1,4 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Columns3 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { History, Loader2, MessageSquare, Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import {

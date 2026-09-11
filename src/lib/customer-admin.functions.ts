@@ -188,7 +188,10 @@ export const createCustomer = createServerFn({ method: "POST" })
       await supabaseAdmin.auth.admin.deleteUser(authUserId);
       throw new Error(insErr.message);
     }
-    return row;
+    // The one-time password is returned once so staff can share it out-of-band;
+    // it is never derived from the customer's mobile number and must be changed on first login.
+    return { ...row, temp_password: password };
+
   });
 
 const UpdateInput = z.object({

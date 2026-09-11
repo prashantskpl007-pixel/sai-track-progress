@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { saveRolePermissions } from "@/lib/master.functions";
 import { useMasters } from "@/hooks/use-masters";
+import { notifyPermissionsChanged } from "@/hooks/use-permissions";
 import {
   ACTION_LABELS,
   EMPTY_ACTIONS,
@@ -81,6 +82,7 @@ export function PermissionsManager() {
           })),
         },
       });
+      notifyPermissionsChanged();
       toast.success(`Permissions saved for ${role}`);
     } catch (e: any) {
       toast.error(e.message);

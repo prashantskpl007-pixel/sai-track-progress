@@ -174,6 +174,7 @@ function AdminPanel() {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState("workflow");
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
@@ -426,6 +427,24 @@ function AdminPanel() {
 
   const uniqueTypes = Array.from(new Set(customers.map((c) => c.agreement_type)));
 
+  const canAccessTab = (module: "enquiry" | "workflow" | "dashboard" | "master" | "analytics") =>
+    perm.isOwner || (perm.can(module, "can_view") && perm.can(module, "menu_visible"));
+
+  const availableTabs = [
+    { value: "enquiry", module: "enquiry" as const },
+    { value: "workflow", module: "workflow" as const },
+    { value: "overview", module: "dashboard" as const },
+    { value: "analytics", module: "analytics" as const },
+    { value: "master", module: "master" as const },
+  ].filter((tab) => canAccessTab(tab.module));
+
+  useEffect(() => {
+    if (perm.loading) return;
+    if (!availableTabs.some((tab) => tab.value === activeTab)) {
+      setActiveTab(availableTabs[0]?.value ?? "");
+    }
+  }, [activeTab, availableTabs, perm.loading]);
+
   if (loading || (!session && !loading)) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -468,28 +487,34 @@ function AdminPanel() {
       </header>
 
       <main className="w-full px-3 py-4 sm:px-4">
-        <Tabs defaultValue="workflow" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-3 flex w-full flex-wrap justify-start gap-1 bg-secondary p-1">
-            {(perm.isOwner || perm.can("enquiry", "can_view")) && (
+            {canAccessTab("enquiry") && (
               <TabsTrigger value="enquiry"><FileText className="mr-1.5 h-4 w-4" />Enquiry</TabsTrigger>
             )}
-            <TabsTrigger value="workflow"><StickyNote className="mr-1.5 h-4 w-4" />Workflow</TabsTrigger>
-
-            <TabsTrigger value="overview"><BarChart3 className="mr-1.5 h-4 w-4" />Overview</TabsTrigger>
-            
-            <TabsTrigger value="master"><UserCog className="mr-1.5 h-4 w-4" />Master</TabsTrigger>
-            
-            
-            <TabsTrigger value="analytics"><BarChart3 className="mr-1.5 h-4 w-4" />Analytics</TabsTrigger>
+            {canAccessTab("workflow") && (
+              <TabsTrigger value="workflow"><StickyNote className="mr-1.5 h-4 w-4" />Workflow</TabsTrigger>
+            )}
+            {canAccessTab("dashboard") && (
+              <TabsTrigger value="overview"><BarChart3 className="mr-1.5 h-4 w-4" />Overview</TabsTrigger>
+            )}
+            {canAccessTab("analytics") && (
+              <TabsTrigger value="analytics"><BarChart3 className="mr-1.5 h-4 w-4" />Analytics</TabsTrigger>
+            )}
+            {canAccessTab("master") && (
+              <TabsTrigger value="master"><UserCog className="mr-1.5 h-4 w-4" />Master</TabsTrigger>
+            )}
           </TabsList>
 
           {/* ===== ENQUIRY ===== */}
-          <TabsContent value="enquiry" className="space-y-4">
-            <EnquiryModule />
-          </TabsContent>
+          {canAccessTab("enquiry") && (
+            <TabsContent value="enquiry" className="space-y-4">
+              <EnquiryModule />
+            </TabsContent>
+          )}
 
           {/* ===== WORKFLOW DASHBOARD (primary working screen) ===== */}
-          <TabsContent value="workflow" className="space-y-2">
+          {canAccessTab("workflow") && <TabsContent value="workflow" className="space-y-2">
 
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card px-3 py-2 shadow-elegant">
               <div className="min-w-0">
@@ -526,11 +551,11 @@ function AdminPanel() {
               </Dialog>
             </div>
             <WorkflowDashboard customers={customers as any} staff={staff} onChanged={load} />
-          </TabsContent>
+          </TabsContent>}
 
           {/* ===== OVERVIEW ===== */}
 
-          <TabsContent value="overview" className="space-y-6">
+          {canAccessTab("dashboard") && <TabsContent value="overview" className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard icon={Users} label="Total registrations" value={String(stats.total)} />
               <StatCard icon={Clock} label="Pending" value={String(stats.pending)} tone="gold" />
@@ -598,15 +623,15 @@ function AdminPanel() {
                 </ResponsiveContainer>
               </ChartCard>
             </div>
-          </TabsContent>
+          </TabsContent>}
 
           
-          <TabsContent value="master">
+          {canAccessTab("master") && <TabsContent value="master">
             <MasterModule staff={staff} onStaffChanged={load} />
-          </TabsContent>
+          </TabsContent>}
 
           
-          <TabsContent value="analytics">
+          {canAccessTab("analytics") && <TabsContent value="analytics">
             <div className="grid gap-6 lg:grid-cols-2">
               <ChartCard title="Financial performance — fees vs collected vs outstanding">
                 <ResponsiveContainer width="100%" height={280}>
@@ -708,7 +733,7 @@ function AdminPanel() {
                 </table>
               </div>
             </div>
-          </TabsContent>
+          </TabsContent>}
         </Tabs>
       </main>
 

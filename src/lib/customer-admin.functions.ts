@@ -125,7 +125,12 @@ export const createCustomer = createServerFn({ method: "POST" })
       email,
       password,
       email_confirm: true,
-      user_metadata: { customer_name: data.customerName, application_number: applicationNumber },
+      user_metadata: {
+        customer_name: data.customerName,
+        application_number: applicationNumber,
+        must_change_password: true,
+      },
+
     });
     if (createErr) throw new Error(`Auth create failed: ${createErr.message}`);
     const authUserId = created.user!.id;

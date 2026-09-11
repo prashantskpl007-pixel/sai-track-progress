@@ -161,7 +161,9 @@ export const logKycDownload = createServerFn({ method: "POST" })
       .eq("id", data.documentId)
       .maybeSingle();
     if (!doc) throw new Error("Document not found");
-    await context.supabase.from("audit_log").insert({
+    // Audit log inserts are not permitted via RLS; use the privileged server client.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("audit_log").insert({
       actor_user_id: context.userId,
       action: "KYC_DOWNLOAD",
       entity_type: "kyc_documents",

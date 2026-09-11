@@ -67,6 +67,15 @@ function customerEmail(appNumber: string) {
   return `${appNumber.trim().toLowerCase()}@customer.sai-enterprise.local`;
 }
 
+/** Strong random one-time password (never derived from customer data). */
+function generateTempPassword() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+  const bytes = new Uint32Array(20);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+}
+
+
 async function nextApplicationNumber(supabase: any): Promise<string> {
   const { data } = await supabase
     .from("customers")
@@ -109,14 +118,19 @@ export const createCustomer = createServerFn({ method: "POST" })
 
     const applicationNumber = await nextApplicationNumber(context.supabase);
     const email = customerEmail(applicationNumber);
-    const password = data.mobileNumber.replace(/\s+/g, "");
+    const password = generateTempPassword();
 
 
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { customer_name: data.customerName, application_number: applicationNumber },
+      user_metadata: {
+        customer_name: data.customerName,
+        application_number: applicationNumber,
+        must_change_password: true,
+      },
+
     });
     if (createErr) throw new Error(`Auth create failed: ${createErr.message}`);
     const authUserId = created.user!.id;
@@ -174,7 +188,10 @@ export const createCustomer = createServerFn({ method: "POST" })
       await supabaseAdmin.auth.admin.deleteUser(authUserId);
       throw new Error(insErr.message);
     }
-    return row;
+    // The one-time password is returned once so staff can share it out-of-band;
+    // it is never derived from the customer's mobile number and must be changed on first login.
+    return { ...row, temp_password: password };
+
   });
 
 const UpdateInput = z.object({
@@ -454,7 +471,7 @@ export const seedDemoCustomers = createServerFn({ method: "POST" })
       const email = `${applicationNumber.toLowerCase()}@customer.sai-enterprise.local`;
       const { data: u, error } = await supabaseAdmin.auth.admin.createUser({
         email,
-        password: s.mobile,
+        password: generateTempPassword(),
         email_confirm: true,
       });
       if (error) continue;

@@ -67,6 +67,15 @@ function customerEmail(appNumber: string) {
   return `${appNumber.trim().toLowerCase()}@customer.sai-enterprise.local`;
 }
 
+/** Strong random one-time password (never derived from customer data). */
+function generateTempPassword() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+  const bytes = new Uint32Array(20);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+}
+
+
 async function nextApplicationNumber(supabase: any): Promise<string> {
   const { data } = await supabase
     .from("customers")

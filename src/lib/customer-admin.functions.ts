@@ -118,7 +118,7 @@ export const createCustomer = createServerFn({ method: "POST" })
 
     const applicationNumber = await nextApplicationNumber(context.supabase);
     const email = customerEmail(applicationNumber);
-    const password = data.mobileNumber.replace(/\s+/g, "");
+    const password = generateTempPassword();
 
 
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
@@ -463,7 +463,7 @@ export const seedDemoCustomers = createServerFn({ method: "POST" })
       const email = `${applicationNumber.toLowerCase()}@customer.sai-enterprise.local`;
       const { data: u, error } = await supabaseAdmin.auth.admin.createUser({
         email,
-        password: s.mobile,
+        password: generateTempPassword(),
         email_confirm: true,
       });
       if (error) continue;

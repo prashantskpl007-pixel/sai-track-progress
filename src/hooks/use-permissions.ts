@@ -18,6 +18,12 @@ export type UserProfile = {
   roleName: string;
 };
 
+const PERMISSIONS_EVENT = "smart-future-permissions-changed";
+
+export function notifyPermissionsChanged() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(PERMISSIONS_EVENT));
+}
+
 const DEFAULT_PROFILE: UserProfile = {
   staffId: null,
   fullName: "",
@@ -93,6 +99,9 @@ export function usePermissions() {
 
   useEffect(() => {
     load();
+    const handlePermissionsChanged = () => load();
+    window.addEventListener(PERMISSIONS_EVENT, handlePermissionsChanged);
+    return () => window.removeEventListener(PERMISSIONS_EVENT, handlePermissionsChanged);
   }, [load]);
 
   function can(module: ModuleKey, action: keyof ModuleActions) {

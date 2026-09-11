@@ -1,8 +1,8 @@
 export const MODULES = [
-  { key: "dashboard", label: "Dashboard" },
   { key: "enquiry", label: "Enquiry" },
   { key: "workflow", label: "Workflow" },
   { key: "schedule", label: "Schedule" },
+  { key: "dashboard", label: "Overview" },
   { key: "analytics", label: "Analytics" },
   { key: "master", label: "Master" },
   { key: "reports", label: "Reports" },

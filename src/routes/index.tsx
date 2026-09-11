@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { FileCheck, Loader2 } from "lucide-react";
+import { FileCheck, Loader2, Lock, Mail, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +42,7 @@ function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(true);
 
@@ -76,64 +77,102 @@ function LoginPage() {
 
   if (checking) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-navy-gradient">
+      <div className="flex min-h-screen items-center justify-center bg-login-glow">
         <Loader2 className="h-6 w-6 animate-spin text-primary-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-navy-gradient px-4 py-10">
-      <div className="w-full max-w-sm rounded-2xl border bg-card p-8 shadow-elegant">
+    <div className="flex min-h-screen items-center justify-center bg-login-glow px-4 py-10">
+      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border bg-card p-8 shadow-elegant">
+        <div className="absolute inset-x-0 top-0 h-1.5 bg-gold-gradient" />
+
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gold-gradient">
-            <FileCheck className="h-7 w-7 text-primary" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gold-gradient shadow-gold">
+            <FileCheck className="h-8 w-8 text-primary" strokeWidth={2.5} />
           </div>
-          <h1 className="mt-4 font-display text-2xl font-bold">SMART FUTURE GROUP</h1>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">
-            Workflow Management
+          <h1 className="mt-5 font-display text-2xl font-bold tracking-tight text-foreground">
+            SMART FUTURE GROUP
+          </h1>
+          <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            Internal Workflow Management System
           </p>
         </div>
 
-        <form className="space-y-4" onSubmit={handleSignIn}>
+        <form className="space-y-5" onSubmit={handleSignIn}>
           <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+            <Label htmlFor="email" className="text-sm font-medium">
+              Email Address
+            </Label>
+            <div className="relative">
+              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="h-11 w-full rounded-lg border bg-muted/40 pl-10 text-sm transition-colors placeholder:text-muted-foreground/70 hover:bg-muted/60 focus:bg-background focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </div>
           </div>
+
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <Label htmlFor="password" className="text-sm font-medium">
+              Password
+            </Label>
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="h-11 w-full rounded-lg border bg-muted/40 pl-10 pr-10 text-sm transition-colors placeholder:text-muted-foreground/70 hover:bg-muted/60 focus:bg-background focus-visible:ring-1 focus-visible:ring-ring"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground focus:outline-none"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
+
           <Button
             type="submit"
             size="lg"
             disabled={busy}
-            className="w-full bg-navy-gradient text-primary-foreground shadow-elegant"
+            className="h-11 w-full bg-navy-gradient text-sm font-semibold text-primary-foreground shadow-elegant transition-all hover:shadow-gold disabled:opacity-70"
           >
+            {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {busy ? "Signing in..." : "Sign In"}
           </Button>
+
           <button
             type="button"
             onClick={forgotPassword}
-            className="w-full text-center text-xs text-muted-foreground underline"
+            className="block w-full text-center text-xs text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
           >
             Forgot password?
           </button>
         </form>
+
+        <div className="mt-8 border-t pt-5 text-center">
+          <p className="font-display text-sm font-semibold text-foreground">Smart Future Group</p>
+          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            Internal Workflow Management System
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -1875,7 +1875,7 @@ function StaffEditDialog({
             try {
               await updateFn({
                 data: {
-                  id: staff.id,
+                  userId: staff.user_id,
                   patch: {
                     full_name: fullName,
                     designation,
@@ -1885,7 +1885,7 @@ function StaffEditDialog({
                   },
                 },
               });
-              toast.success("Updated");
+              toast.success("User updated successfully.");
               onSaved();
             } catch (e: any) {
               toast.error(e.message);

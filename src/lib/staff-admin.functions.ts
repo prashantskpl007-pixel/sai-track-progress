@@ -80,6 +80,7 @@ const StaffPatch = z.object({
     full_name: z.string().trim().min(2).optional(),
     designation: z.string().optional(),
     mobile_number: z.string().optional(),
+    profile_photo_url: z.string().url().nullable().optional(),
     is_active: z.boolean().optional(),
     role_name: z.string().nullable().optional(),
   }),

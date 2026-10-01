@@ -56,7 +56,7 @@ export function UserMenu({
             <Avatar className="h-9 w-9 border border-white/30">
               {profile.photoUrl && <AvatarImage src={profile.photoUrl} alt={profile.fullName} />}
               <AvatarFallback className="bg-gold-gradient text-xs font-bold text-primary">
-                {initials(profile.fullName) || "SE"}
+                {initials(profile.fullName) || "U"}
               </AvatarFallback>
             </Avatar>
             <div className="hidden leading-tight sm:block">

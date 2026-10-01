@@ -34,6 +34,14 @@ const DEFAULT_PROFILE: UserProfile = {
   roleName: "",
 };
 
+function displayName(staffName?: string | null, metaName?: string | null, email?: string | null) {
+  if (staffName?.trim()) return staffName.trim();
+  if (metaName?.trim() && !/sai enterprise/i.test(metaName)) return metaName.trim();
+  const local = (email ?? "").split("@")[0] ?? "";
+  if (!local) return "User";
+  return local.replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function usePermissions() {
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
@@ -61,16 +69,17 @@ export function usePermissions() {
 
     const s: any = staffRes.data;
     const effective = (effRes.data as string | null) ?? baseRoles[0] ?? "";
-    setRoleName(s?.role_name ?? effective);
+    const roleLabel = s?.role_name ?? (owner ? (baseRoles.includes("owner") ? "Owner" : "Admin") : effective);
+    setRoleName(roleLabel);
 
     setProfile({
       staffId: s?.id ?? null,
-      fullName: s?.full_name ?? (user.user_metadata as any)?.["full_name"] ?? user.email ?? "User",
-      designation: s?.designation ?? (owner ? "Owner" : ""),
+      fullName: displayName(s?.full_name, (user.user_metadata as any)?.["full_name"], user.email),
+      designation: s?.designation ?? "",
       email: s?.email ?? user.email ?? "",
       mobile: s?.mobile_number ?? "",
       photoUrl: s?.profile_photo_url ?? null,
-      roleName: s?.role_name ?? effective,
+      roleName: roleLabel,
     });
 
     const map: Record<string, ModuleActions> = {};

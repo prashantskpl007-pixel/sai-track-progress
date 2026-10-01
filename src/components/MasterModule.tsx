@@ -258,22 +258,24 @@ function StaffManager({ staff, onChanged }: { staff: Staff[]; onChanged: () => P
   const [pwd, setPwd] = useState("");
 
   async function remove(s: Staff) {
-    if (!confirm(`Delete ${s.full_name}? This removes their login too.`)) return;
+    if (!confirm(`Remove ${s.full_name} from staff?`)) return;
+    const t = toast.loading("Removing user…");
     try {
       await deleteFn({ data: { id: s.id } });
       await onChanged();
-      toast.success("Staff deleted");
+      toast.success("User removed successfully.", { id: t });
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(`Failed to remove user: ${e.message}`, { id: t });
     }
   }
 
   async function toggleActive(s: Staff, active: boolean) {
     try {
-      await updateFn({ data: { id: s.id, patch: { is_active: active } } });
+      await updateFn({ data: { userId: s.user_id, patch: { is_active: active } } });
       await onChanged();
+      toast.success("User updated successfully.");
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(`Failed to update user: ${e.message}`);
     }
   }
 
@@ -295,7 +297,7 @@ function StaffManager({ staff, onChanged }: { staff: Staff[]; onChanged: () => P
             <thead className="bg-secondary text-left text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">User ID</th>
                 <th className="px-4 py-3">Mobile</th>
                 <th className="px-4 py-3">Designation</th>
                 <th className="px-4 py-3">Role</th>
@@ -310,7 +312,7 @@ function StaffManager({ staff, onChanged }: { staff: Staff[]; onChanged: () => P
                 staff.map((s) => (
                   <tr key={s.id} className="border-t">
                     <td className="px-4 py-2 font-medium">{s.full_name}</td>
-                    <td className="px-4 py-2 text-muted-foreground">{s.email}</td>
+                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{s.user_id ?? "—"}</td>
                     <td className="px-4 py-2">{s.mobile_number}</td>
                     <td className="px-4 py-2">{s.designation}</td>
                     <td className="px-4 py-2">{s.role_name ? <Badge variant="outline">{s.role_name}</Badge> : "—"}</td>
@@ -342,16 +344,17 @@ function StaffManager({ staff, onChanged }: { staff: Staff[]; onChanged: () => P
           roles={roles}
           onClose={() => setOpen(false)}
           onSave={async (v) => {
+            const t = toast.loading(editing ? "Updating user…" : "Adding user…");
             try {
               if (editing) {
                 await updateFn({
                   data: {
-                    id: editing.id,
+                    userId: editing.user_id,
+                    baseRole: v.baseRole as any,
                     patch: {
                       full_name: v.fullName,
                       designation: v.designation,
                       mobile_number: v.mobileNumber,
-                      email: v.email,
                       role_name: v.roleName,
                       is_active: v.isActive,
                     },
@@ -360,21 +363,21 @@ function StaffManager({ staff, onChanged }: { staff: Staff[]; onChanged: () => P
               } else {
                 await createFn({
                   data: {
+                    userId: v.userId,
                     fullName: v.fullName,
                     designation: v.designation,
                     mobileNumber: v.mobileNumber,
-                    email: v.email,
-                    password: v.password,
                     roleName: v.roleName,
                     baseRole: v.baseRole as any,
+                    isActive: v.isActive,
                   },
                 });
               }
               setOpen(false);
               await onChanged();
-              toast.success("Staff saved");
+              toast.success(editing ? "User updated successfully." : "User added successfully.", { id: t });
             } catch (e: any) {
-              toast.error(e.message);
+              toast.error(`${editing ? "Failed to update user" : "Failed to add user"}: ${e.message}`, { id: t });
             }
           }}
         />
@@ -419,20 +422,19 @@ function StaffDialog({
   onClose: () => void;
   onSave: (v: {
     fullName: string;
-    email: string;
+    userId: string;
     mobileNumber: string;
     designation: string;
-    password: string;
     roleName: string;
     baseRole: string;
     isActive: boolean;
   }) => Promise<void>;
 }) {
   const [fullName, setFullName] = useState(staff?.full_name ?? "");
-  const [email, setEmail] = useState(staff?.email ?? "");
+  const [userId, setUserId] = useState(staff?.user_id ?? "");
+  const [saving, setSaving] = useState(false);
   const [mobileNumber, setMobile] = useState(staff?.mobile_number ?? "");
   const [designation, setDesignation] = useState(staff?.designation ?? "");
-  const [password, setPassword] = useState("");
   const [roleName, setRoleName] = useState(staff?.role_name ?? "");
   const [isActive, setIsActive] = useState(staff ? Boolean(staff.is_active) : true);
 
@@ -452,8 +454,14 @@ function StaffDialog({
             <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Email Address</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Label>User ID *</Label>
+            <Input
+              value={userId}
+              disabled={Boolean(staff)}
+              onChange={(e) => setUserId(e.target.value.trim())}
+              placeholder="Existing login User ID"
+              className="font-mono text-xs"
+            />
           </div>
           <div className="space-y-2">
             <Label>Mobile Number</Label>
@@ -472,12 +480,6 @@ function StaffDialog({
               </SelectContent>
             </Select>
           </div>
-          {!staff && (
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Password</Label>
-              <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Minimum 6 characters" />
-            </div>
-          )}
           <div className="flex items-center gap-3 sm:col-span-2">
             <Switch checked={isActive} onCheckedChange={setIsActive} />
             <Label>Status: {isActive ? "Active" : "Inactive"}</Label>
@@ -487,11 +489,17 @@ function StaffDialog({
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
             className="bg-gold-gradient text-gold-foreground shadow-gold"
-            onClick={() =>
-              onSave({ fullName, email, mobileNumber, designation, password, roleName, baseRole, isActive })
-            }
+            disabled={saving || !userId || !fullName.trim()}
+            onClick={async () => {
+              setSaving(true);
+              try {
+                await onSave({ fullName, userId, mobileNumber, designation, roleName, baseRole, isActive });
+              } finally {
+                setSaving(false);
+              }
+            }}
           >
-            Save
+            {saving ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>

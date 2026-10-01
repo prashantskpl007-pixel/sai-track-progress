@@ -82,10 +82,12 @@ export function PermissionsManager() {
           })),
         },
       });
+      await load(role);
       notifyPermissionsChanged();
-      toast.success(`Permissions saved for ${role}`);
+      toast.success("Role permissions updated successfully.");
     } catch (e: any) {
-      toast.error(e.message);
+      console.error(e);
+      toast.error("Failed to update role permissions. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -124,7 +126,7 @@ export function PermissionsManager() {
             className="bg-gold-gradient text-gold-foreground shadow-gold"
           >
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-            Save permissions
+            {busy ? "Saving…" : "Save permissions"}
           </Button>
         </div>
       </div>

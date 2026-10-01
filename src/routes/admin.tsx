@@ -1875,7 +1875,7 @@ function StaffEditDialog({
             try {
               await updateFn({
                 data: {
-                  userId: staff.user_id,
+                  userId: staff.user_id ?? "",
                   patch: {
                     full_name: fullName,
                     designation,

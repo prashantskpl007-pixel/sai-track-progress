@@ -71,6 +71,7 @@ export function PermissionsManager() {
   }
 
   async function save() {
+    if (busy) return;
     setBusy(true);
     try {
       await saveFn({
@@ -86,8 +87,7 @@ export function PermissionsManager() {
       notifyPermissionsChanged();
       toast.success("Role permissions updated successfully.");
     } catch (e: any) {
-      console.error(e);
-      toast.error("Failed to update role permissions. Please try again.");
+      toast.error(`Unable to update role permissions: ${e?.message ?? "Unknown error"}`);
     } finally {
       setBusy(false);
     }

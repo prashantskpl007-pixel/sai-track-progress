@@ -1,6 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { FileCheck, Loader2, Lock, Mail, Eye, EyeOff } from "lucide-react";
+import { FileCheck, Loader2, Lock, UserRound, Eye, EyeOff } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { signInWithUserId } from "@/lib/login.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,7 +42,8 @@ async function redirectForUser(userId: string, navigate: ReturnType<typeof useNa
 
 function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [userId, setUserId] = useState("");
+  const loginFn = useServerFn(signInWithUserId);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -55,24 +58,26 @@ function LoginPage() {
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
     setBusy(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    setBusy(false);
-    if (error || !data.user) {
-      toast.error("Sign in failed", { description: error?.message });
+    let data: Awaited<ReturnType<typeof supabase.auth.setSession>>["data"];
+    try {
+      const tokens = await loginFn({ data: { userId: userId.trim(), password } });
+      const res = await supabase.auth.setSession(tokens);
+      if (res.error || !res.data.user) throw new Error(res.error?.message ?? "Sign in failed");
+      data = res.data;
+    } catch (err: any) {
+      setBusy(false);
+      toast.error("Sign in failed", { description: err?.message });
       return;
     }
+    setBusy(false);
     toast.success("Welcome back");
-    await redirectForUser(data.user.id, navigate);
+    await redirectForUser(data.user!.id, navigate);
   }
 
   async function forgotPassword() {
-    if (!email.trim()) return toast.error("Enter your email address first");
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    if (error) return toast.error(error.message);
-    toast.success("Password reset link sent to your email");
+    toast.info("Please contact the Owner to reset your password.");
   }
 
   if (checking) {
@@ -102,18 +107,18 @@ function LoginPage() {
 
         <form className="space-y-5" onSubmit={handleSignIn}>
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-medium">
-              Email Address
+            <Label htmlFor="userId" className="text-sm font-medium">
+              User ID
             </Label>
             <div className="relative">
-              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                placeholder="you@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="userId"
+                type="text"
+                autoComplete="username"
+                placeholder="Enter your User ID"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
                 required
                 className="h-11 w-full rounded-lg border bg-muted/40 pl-10 text-sm transition-colors placeholder:text-muted-foreground/70 hover:bg-muted/60 focus:bg-background focus-visible:ring-1 focus-visible:ring-ring"
               />

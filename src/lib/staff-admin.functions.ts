@@ -13,8 +13,16 @@ async function assertAdmin(ctx: { supabase: any; userId: string }) {
 
 const BASE_ROLES = ["admin", "owner", "manager", "staff", "verification_partner", "viewer"] as const;
 
+const USER_ID = z
+  .string()
+  .trim()
+  .min(3, "User ID must be at least 3 characters")
+  .max(40)
+  .regex(/^[A-Za-z0-9._-]+$/, "User ID can only contain letters, numbers, dot, dash and underscore");
+
 const StaffInput = z.object({
-  userId: z.string().trim().uuid("User ID must be a valid user ID from the login system"),
+  userId: USER_ID,
+  password: z.string().min(6, "Password must be at least 6 characters"),
   fullName: z.string().trim().min(2, "Name is required"),
   designation: z.string().trim().optional().default(""),
   mobileNumber: z.string().trim().optional().default(""),
@@ -26,7 +34,6 @@ const StaffInput = z.object({
 async function setBaseRole(admin: any, userId: string, baseRole: string) {
   const { data: existing } = await admin.from("user_roles").select("role").eq("user_id", userId);
   const roles = (existing ?? []).map((r: any) => r.role);
-  // Never downgrade an Owner/Admin account from here.
   if (roles.includes("owner") || roles.includes("admin")) return;
   const { error: dErr } = await admin.from("user_roles").delete().eq("user_id", userId);
   if (dErr) throw new Error(dErr.message);
@@ -40,41 +47,52 @@ export const createStaff = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const username = data.userId.toLowerCase();
 
-    const { data: found, error: uErr } = await supabaseAdmin.auth.admin.getUserById(data.userId);
-    if (uErr || !found?.user) throw new Error("This User ID does not exist in the login system.");
-    const authUser = found.user;
+    const { data: dup } = await supabaseAdmin.from("staff").select("id").ilike("username", username).maybeSingle();
+    if (dup) throw new Error(`User ID "${data.userId}" is already in use.`);
 
-    const { data: dup } = await supabaseAdmin.from("staff").select("id").eq("user_id", data.userId).maybeSingle();
-    if (dup) throw new Error("A staff member with this User ID already exists.");
+    const loginEmail = `${username}@staff.smartfuturegroup.local`;
+    const { data: created, error: cErr } = await supabaseAdmin.auth.admin.createUser({
+      email: loginEmail,
+      password: data.password,
+      email_confirm: true,
+      user_metadata: { full_name: data.fullName, user_id: username, staff: true },
+    });
+    if (cErr || !created.user) throw new Error(cErr?.message ?? "Could not create login");
+    const uid = created.user.id;
 
     const { data: row, error: sErr } = await supabaseAdmin
       .from("staff")
       .insert({
-        user_id: data.userId,
+        user_id: uid,
+        username,
         full_name: data.fullName,
         designation: data.designation || "—",
         mobile_number: data.mobileNumber || "—",
-        email: authUser.email ?? `${data.userId}@users.local`,
+        email: loginEmail,
         role_name: data.roleName ?? null,
         is_active: data.isActive,
         joining_date: new Date().toISOString().slice(0, 10),
       })
       .select("*")
       .single();
-    if (sErr) throw new Error(sErr.message);
-
+    if (sErr) {
+      await supabaseAdmin.auth.admin.deleteUser(uid);
+      throw new Error(sErr.message);
+    }
     try {
-      await setBaseRole(supabaseAdmin, data.userId, data.baseRole);
+      await setBaseRole(supabaseAdmin, uid, data.baseRole);
     } catch (e) {
       await supabaseAdmin.from("staff").delete().eq("id", row.id);
+      await supabaseAdmin.auth.admin.deleteUser(uid);
       throw e;
     }
     return row;
   });
 
 const StaffPatch = z.object({
-  userId: z.string().uuid(),
+  userId: z.string().trim().min(1),
   baseRole: z.enum(BASE_ROLES).optional(),
   patch: z.object({
     full_name: z.string().trim().min(2).optional(),
@@ -95,12 +113,12 @@ export const updateStaff = createServerFn({ method: "POST" })
     const { data: row, error } = await supabaseAdmin
       .from("staff")
       .update(data.patch)
-      .eq("user_id", data.userId)
+      .ilike("username", data.userId)
       .select("*")
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) throw new Error("No staff member found for this User ID.");
-    if (data.baseRole) await setBaseRole(supabaseAdmin, data.userId, data.baseRole);
+    if (data.baseRole && row.user_id) await setBaseRole(supabaseAdmin, row.user_id, data.baseRole);
     return row;
   });
 

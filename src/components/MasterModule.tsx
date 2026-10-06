@@ -64,8 +64,9 @@ export function MasterModule({
       <TabsContent value="staff">
         <StaffManager staff={staff} onChanged={onStaffChanged} />
       </TabsContent>
-      <TabsContent value="roles">
+      <TabsContent value="roles" className="space-y-6">
         <RoleManager />
+        <StaffManager staff={staff} onChanged={onStaffChanged} />
       </TabsContent>
     </Tabs>
   );
@@ -120,9 +121,9 @@ function RoleManager() {
       await deleteFn({ data: { kind: "role", id: r.id } });
       await reload();
       notifyMastersChanged();
-      toast.success("Role deleted");
+      toast.success("Role removed successfully.");
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(`Unable to remove role: ${e.message}`);
     }
   }
 
@@ -186,9 +187,9 @@ function RoleManager() {
               setOpen(false);
               await reload();
               notifyMastersChanged();
-              toast.success("Role saved");
+              toast.success("Role updated successfully.");
             } catch (e: any) {
-              toast.error(e.message);
+              toast.error(`Unable to update role: ${e.message}`);
             }
           }}
         />
@@ -256,6 +257,7 @@ function StaffManager({ staff, onChanged }: { staff: Staff[]; onChanged: () => P
   const [editing, setEditing] = useState<Staff | null>(null);
   const [pwdFor, setPwdFor] = useState<Staff | null>(null);
   const [pwd, setPwd] = useState("");
+  const [resetting, setResetting] = useState(false);
 
   async function remove(s: Staff) {
     if (!confirm(`Remove ${s.full_name} from staff?`)) return;
@@ -388,21 +390,25 @@ function StaffManager({ staff, onChanged }: { staff: Staff[]; onChanged: () => P
         <Dialog open onOpenChange={(o) => !o && setPwdFor(null)}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Reset password — {pwdFor.full_name}</DialogTitle></DialogHeader>
-            <Input type="text" placeholder="New password" value={pwd} onChange={(e) => setPwd(e.target.value)} />
+            <Input type="text" placeholder="New password (minimum 6 characters)" value={pwd} onChange={(e) => setPwd(e.target.value)} />
             <DialogFooter>
               <Button variant="outline" onClick={() => setPwdFor(null)}>Cancel</Button>
               <Button
+                disabled={resetting || pwd.length < 6}
                 onClick={async () => {
+                  setResetting(true);
                   try {
                     await resetFn({ data: { id: pwdFor.id, password: pwd } });
                     setPwdFor(null);
-                    toast.success("Password updated");
+                    toast.success("Password reset successfully.");
                   } catch (e: any) {
-                    toast.error(e.message);
+                    toast.error(`Unable to reset password: ${e.message}`);
+                  } finally {
+                    setResetting(false);
                   }
                 }}
               >
-                Update
+                {resetting ? "Resetting…" : "Reset password"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -441,10 +447,6 @@ function StaffDialog({
   const [roleName, setRoleName] = useState(staff?.role_name ?? "");
   const [isActive, setIsActive] = useState(staff ? Boolean(staff.is_active) : true);
 
-  useEffect(() => {
-    if (!roleName && roles.length) setRoleName(roles[0].name);
-  }, [roles.length]);
-
   const baseRole = roles.find((r) => r.name === roleName)?.base_role ?? "staff";
 
   return (
@@ -475,7 +477,7 @@ function StaffDialog({
             <Input value={designation} onChange={(e) => setDesignation(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Assigned Role</Label>
+            <Label>Role *</Label>
             <Select value={roleName} onValueChange={setRoleName}>
               <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
               <SelectContent>
@@ -498,7 +500,7 @@ function StaffDialog({
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
             className="bg-gold-gradient text-gold-foreground shadow-gold"
-            disabled={saving || !userId || !fullName.trim() || (!staff && password.length < 6)}
+            disabled={saving || !userId || !fullName.trim() || !roleName || (!staff && password.length < 6)}
             onClick={async () => {
               setSaving(true);
               try {

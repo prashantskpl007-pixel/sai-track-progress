@@ -11,6 +11,25 @@ async function assertAdmin(ctx: { supabase: any; userId: string }) {
   if (!data) throw new Error("Forbidden: Owner / Manager / Admin only");
 }
 
+/** Resolve a master role name to its access level on the server; never trust the client. */
+async function resolveRole(ctx: { supabase: any; userId: string }, admin: any, roleName: string) {
+  const { data: role, error } = await admin
+    .from("master_roles")
+    .select("name, base_role, is_active")
+    .ilike("name", roleName.trim())
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!role || !role.is_active) throw new Error(`Role "${roleName}" does not exist or is inactive.`);
+  if (role.base_role === "owner" || role.base_role === "admin") {
+    const { data: isOwner } = await ctx.supabase.rpc("has_any_role", {
+      _user_id: ctx.userId,
+      _roles: ["admin", "owner"],
+    });
+    if (!isOwner) throw new Error("Only the Owner can assign the Owner role.");
+  }
+  return { name: role.name as string, baseRole: role.base_role as string };
+}
+
 const BASE_ROLES = ["admin", "owner", "manager", "staff", "verification_partner", "viewer"] as const;
 
 const USER_ID = z
@@ -26,8 +45,8 @@ const StaffInput = z.object({
   fullName: z.string().trim().min(2, "Name is required"),
   designation: z.string().trim().optional().default(""),
   mobileNumber: z.string().trim().optional().default(""),
-  roleName: z.string().optional().nullable(),
-  baseRole: z.enum(BASE_ROLES).default("staff"),
+  roleName: z.string().trim().min(1, "Role is required"),
+  baseRole: z.enum(BASE_ROLES).optional(),
   isActive: z.boolean().default(true),
 });
 
@@ -48,6 +67,7 @@ export const createStaff = createServerFn({ method: "POST" })
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const username = data.userId.toLowerCase();
+    const role = await resolveRole(context, supabaseAdmin, data.roleName);
 
     const { data: dup } = await supabaseAdmin.from("staff").select("id").ilike("username", username).maybeSingle();
     if (dup) throw new Error(`User ID "${data.userId}" is already in use.`);
@@ -71,7 +91,7 @@ export const createStaff = createServerFn({ method: "POST" })
         designation: data.designation || "—",
         mobile_number: data.mobileNumber || "—",
         email: loginEmail,
-        role_name: data.roleName ?? null,
+        role_name: role.name,
         is_active: data.isActive,
         joining_date: new Date().toISOString().slice(0, 10),
       })
@@ -82,7 +102,7 @@ export const createStaff = createServerFn({ method: "POST" })
       throw new Error(sErr.message);
     }
     try {
-      await setBaseRole(supabaseAdmin, uid, data.baseRole);
+      await setBaseRole(supabaseAdmin, uid, role.baseRole);
     } catch (e) {
       await supabaseAdmin.from("staff").delete().eq("id", row.id);
       await supabaseAdmin.auth.admin.deleteUser(uid);
@@ -110,15 +130,22 @@ export const updateStaff = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const patch = { ...data.patch };
+    let baseRole: string | null = null;
+    if (patch.role_name) {
+      const role = await resolveRole(context, supabaseAdmin, patch.role_name);
+      patch.role_name = role.name;
+      baseRole = role.baseRole;
+    }
     const { data: row, error } = await supabaseAdmin
       .from("staff")
-      .update(data.patch)
+      .update(patch)
       .ilike("username", data.userId)
       .select("*")
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!row) throw new Error("No staff member found for this User ID.");
-    if (data.baseRole && row.user_id) await setBaseRole(supabaseAdmin, row.user_id, data.baseRole);
+    if (baseRole && row.user_id) await setBaseRole(supabaseAdmin, row.user_id, baseRole);
     return row;
   });
 
@@ -131,7 +158,7 @@ export const resetStaffPassword = createServerFn({ method: "POST" })
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: s } = await supabaseAdmin.from("staff").select("user_id").eq("id", data.id).maybeSingle();
-    if (!s?.user_id) throw new Error("Staff login not linked");
+    if (!s?.user_id) throw new Error("This user has no login account linked.");
     const { error } = await supabaseAdmin.auth.admin.updateUserById(s.user_id, {
       password: data.password,
     });

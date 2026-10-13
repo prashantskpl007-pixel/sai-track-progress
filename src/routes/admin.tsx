@@ -100,7 +100,8 @@ import { MasterModule } from "@/components/MasterModule";
 import { EnquiryModule } from "@/components/EnquiryModule";
 
 import { useMasters } from "@/hooks/use-masters";
-import { deriveCommission } from "@/lib/field-config";
+import { deriveCommission, deriveFinance } from "@/lib/field-config";
+import { istDate, isCompleted, workflowStatusOf } from "@/lib/overview-metrics";
 
 import {
   listVerificationPartners,
@@ -177,6 +178,7 @@ function AdminPanel() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [fetching, setFetching] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -228,8 +230,10 @@ function AdminPanel() {
     ]);
     if (cRes.error) toast.error(cRes.error.message);
     if (sRes.error && sRes.error.code !== "PGRST116") toast.error(sRes.error.message);
-    setCustomers((cRes.data as Customer[]) ?? []);
-    setStaff((sRes.data as Staff[]) ?? []);
+    const errs = [cRes.error?.message, sRes.error && sRes.error.code !== "PGRST116" ? sRes.error.message : null].filter(Boolean);
+    setLoadError(errs.length ? errs.join(" · ") : null);
+    if (!cRes.error) setCustomers((cRes.data as Customer[]) ?? []);
+    if (!sRes.error) setStaff((sRes.data as Staff[]) ?? []);
     setVerificationCases((vRes.data as any[]) ?? []);
     try {
       const partners = await listPartnersFn({});
@@ -259,25 +263,36 @@ function AdminPanel() {
     });
   }, [customers, q, statusFilter, typeFilter]);
 
+  // Overview works only on live (not soft-deleted) records — the same set the Workflow table shows.
+  const liveCustomers = useMemo(
+    () => customers.filter((c: any) => !c.deleted_at),
+    [customers],
+  );
+
   const stats = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = istDate(new Date());
     const weekAgo = new Date(Date.now() - 7 * 86400000);
-    const totalRev = customers.reduce((s, c) => s + (c.total_amount ?? 0), 0);
-    const receivedRev = customers.reduce((s, c) => s + (c.payment_received ?? 0), 0);
-    const pendingRev = customers.reduce((s, c) => s + (c.balance_amount ?? 0), 0);
+    let totalRev = 0, receivedRev = 0, pendingRev = 0;
+    liveCustomers.forEach((c) => {
+      const f = deriveFinance(c.total_amount, c.payment_received);
+      totalRev += f.fees;
+      receivedRev += f.received;
+      pendingRev += f.balance;
+    });
+    const completed = liveCustomers.filter(isCompleted).length;
     return {
-      total: customers.length,
-      pending: customers.filter((c) => c.current_status !== "agreement_ready").length,
-      completed: customers.filter((c) => c.current_status === "agreement_ready").length,
-      todayAppts: customers.filter(
-        (c) => c.appointment_date && c.appointment_date.slice(0, 10) === today,
+      total: liveCustomers.length,
+      pending: liveCustomers.length - completed,
+      completed,
+      todayAppts: liveCustomers.filter(
+        (c) => c.appointment_date && istDate(new Date(c.appointment_date)) === today,
       ).length,
-      thisWeek: customers.filter((c) => new Date(c.registration_date) >= weekAgo).length,
+      thisWeek: liveCustomers.filter((c) => new Date(c.registration_date) >= weekAgo).length,
       totalRev,
       receivedRev,
       pendingRev,
     };
-  }, [customers]);
+  }, [liveCustomers]);
 
   // Charts data
   const monthlyData = useMemo(() => {
@@ -289,44 +304,45 @@ function AdminPanel() {
       const label = d.toLocaleString("en-IN", { month: "short", year: "2-digit" });
       map.set(key, { month: label, registrations: 0, revenue: 0 });
     }
-    customers.forEach((c) => {
+    liveCustomers.forEach((c) => {
       const key = c.registration_date?.slice(0, 7);
       const row = map.get(key);
       if (row) {
         row.registrations += 1;
-        row.revenue += c.payment_received ?? 0;
+        row.revenue += Number(c.payment_received) || 0;
       }
     });
     return Array.from(map.values());
-  }, [customers]);
+  }, [liveCustomers]);
 
   const typeDistribution = useMemo(() => {
     const map = new Map<string, number>();
-    customers.forEach((c) => map.set(c.agreement_type, (map.get(c.agreement_type) ?? 0) + 1));
+    liveCustomers.forEach((c) => map.set(c.agreement_type, (map.get(c.agreement_type) ?? 0) + 1));
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
-  }, [customers]);
+  }, [liveCustomers]);
 
   const statusDistribution = useMemo(() => {
     const map = new Map<string, number>();
-    customers.forEach((c) =>
-      map.set(statusLabel(c.current_status), (map.get(statusLabel(c.current_status)) ?? 0) + 1),
-    );
+    liveCustomers.forEach((c) => {
+      const label = workflowStatusOf(c);
+      map.set(label, (map.get(label) ?? 0) + 1);
+    });
     return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
-  }, [customers]);
+  }, [liveCustomers]);
 
   const staffPerf = useMemo(() => {
     const map = new Map<string, { name: string; total: number; completed: number }>();
     staff.forEach((s) => map.set(s.id, { name: s.full_name, total: 0, completed: 0 }));
-    customers.forEach((c) => {
+    liveCustomers.forEach((c) => {
       if (!c.assigned_staff_id) return;
       const row = map.get(c.assigned_staff_id);
       if (row) {
         row.total += 1;
-        if (c.current_status === "agreement_ready") row.completed += 1;
+        if (isCompleted(c)) row.completed += 1;
       }
     });
     return Array.from(map.values());
-  }, [staff, customers]);
+  }, [staff, liveCustomers]);
 
   // Source (agent) analytics — volume, revenue, collection
   const sourceStats = useMemo(() => {
@@ -541,6 +557,15 @@ function AdminPanel() {
           {/* ===== OVERVIEW ===== */}
 
           {canAccessTab("dashboard") && <TabsContent value="overview" className="space-y-6">
+            {loadError && (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <span><AlertTriangle className="mr-1.5 inline h-4 w-4" />Couldn't load the latest figures: {loadError}</span>
+                <Button size="sm" variant="outline" onClick={() => load()}>Retry</Button>
+              </div>
+            )}
+            {fetching && customers.length === 0 ? (
+              <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard icon={Users} label="Total registrations" value={String(stats.total)} />
               <StatCard icon={Clock} label="Pending" value={String(stats.pending)} tone="gold" />
@@ -608,6 +633,10 @@ function AdminPanel() {
                 </ResponsiveContainer>
               </ChartCard>
             </div>
+            {liveCustomers.length === 0 && !loadError && (
+              <p className="text-center text-sm text-muted-foreground">No active records yet.</p>
+            )}
+            </>}
           </TabsContent>}
 
           

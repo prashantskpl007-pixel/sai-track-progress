@@ -109,7 +109,15 @@ import {
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
-    meta: [{ title: "Admin — SMART FUTURE GROUP" }, { name: "robots", content: "noindex" }],
+    meta: [
+      { title: "Admin — SMART FUTURE GROUP" },
+      { name: "description", content: "SMART FUTURE GROUP internal workflow administration." },
+      { property: "og:title", content: "Admin — SMART FUTURE GROUP" },
+      { property: "og:description", content: "SMART FUTURE GROUP internal workflow administration." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
+    ],
   }),
   component: AdminPanel,
 });

@@ -14,7 +14,6 @@ import {
   Trash2,
   Pencil,
   Loader2,
-  Sparkles,
   IndianRupee,
   AlertTriangle,
   UserCog,
@@ -72,7 +71,6 @@ import {
   createCustomer,
   updateCustomer,
   deleteCustomer,
-  seedDemoCustomers,
   addInternalNote,
   deleteInternalNote,
   resolveAlert,
@@ -188,7 +186,6 @@ function AdminPanel() {
   const createFn = useServerFn(createCustomer);
   const updateFn = useServerFn(updateCustomer);
   const deleteFn = useServerFn(deleteCustomer);
-  const seedFn = useServerFn(seedDemoCustomers);
   const createStaffFn = useServerFn(createStaff);
   const updateStaffFn = useServerFn(updateStaff);
   const deleteStaffFn = useServerFn(deleteStaff);
@@ -238,17 +235,6 @@ function AdminPanel() {
   async function signOut() {
     await supabase.auth.signOut();
     navigate({ to: "/" });
-  }
-
-  async function handleSeed() {
-    try {
-      const r = await seedFn({});
-      if ((r as { skipped?: boolean }).skipped) toast.info("Sample data already exists");
-      else toast.success("Sample customers created (SE0001–SE0003)");
-      await load();
-    } catch (e: any) {
-      toast.error(e.message);
-    }
   }
 
   const filtered = useMemo(() => {
@@ -467,15 +453,6 @@ function AdminPanel() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {customers.length === 0 && (
-              <Button
-                variant="outline"
-                className="border-white/30 bg-white/5 text-primary-foreground hover:bg-white/10"
-                onClick={handleSeed}
-              >
-                <Sparkles className="mr-2 h-4 w-4" /> Add sample data
-              </Button>
-            )}
             <UserMenu
               profile={perm.profile}
               roleName={perm.roleName}

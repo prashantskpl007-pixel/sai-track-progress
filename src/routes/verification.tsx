@@ -53,6 +53,10 @@ export const Route = createFileRoute("/verification")({
     meta: [
       { title: "Verification Partner — SMART FUTURE GROUP" },
       { name: "description", content: "Verification Partner dashboard for assigned cases." },
+      { property: "og:title", content: "Verification Partner — SMART FUTURE GROUP" },
+      { property: "og:description", content: "Verification Partner dashboard for assigned cases." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: VerificationDashboard,

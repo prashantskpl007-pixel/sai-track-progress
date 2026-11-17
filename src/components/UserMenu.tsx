@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { changeMyPassword } from "@/lib/profile.functions";
 import type { UserProfile } from "@/hooks/use-permissions";
+import { isPasswordLongEnough, PASSWORD_MIN_LENGTH_ERROR } from "@/lib/password-policy";
 
 function initials(name: string) {
   return name
@@ -133,6 +134,28 @@ function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
   const [confirmPwd, setConfirmPwd] = useState("");
   const [busy, setBusy] = useState(false);
 
+  async function savePassword() {
+    if (!isPasswordLongEnough(pwd)) {
+      toast.error(PASSWORD_MIN_LENGTH_ERROR);
+      return;
+    }
+    if (pwd !== confirmPwd) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await changeFn({ data: { password: pwd } });
+      toast.success("Password updated successfully.");
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-sm">
@@ -141,7 +164,7 @@ function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-2">
-            <Label>New password</Label>
+            <Label>New password (minimum 4 characters)</Label>
             <Input type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} />
           </div>
           <div className="space-y-2">
@@ -158,19 +181,8 @@ function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
             Cancel
           </Button>
           <Button
-            disabled={busy || pwd.length < 6 || pwd !== confirmPwd}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await changeFn({ data: { password: pwd } });
-                toast.success("Password updated");
-                onClose();
-              } catch (e: any) {
-                toast.error(e.message);
-              } finally {
-                setBusy(false);
-              }
-            }}
+            disabled={busy}
+            onClick={savePassword}
           >
             {busy ? "Saving..." : "Update"}
           </Button>

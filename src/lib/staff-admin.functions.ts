@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { MIN_PASSWORD_LENGTH, PASSWORD_MIN_LENGTH_ERROR } from "@/lib/password-policy";
 
 async function assertAdmin(ctx: { supabase: any; userId: string }) {
   const { data, error } = await ctx.supabase.rpc("has_any_role", {
@@ -41,7 +42,7 @@ const USER_ID = z
 
 const StaffInput = z.object({
   userId: USER_ID,
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(MIN_PASSWORD_LENGTH, PASSWORD_MIN_LENGTH_ERROR),
   fullName: z.string().trim().min(2, "Name is required"),
   designation: z.string().trim().optional().default(""),
   mobileNumber: z.string().trim().optional().default(""),
@@ -152,10 +153,20 @@ export const updateStaff = createServerFn({ method: "POST" })
 export const resetStaffPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { id: string; password: string }) =>
-    z.object({ id: z.string().uuid(), password: z.string().min(6) }).parse(data),
+    z
+      .object({
+        id: z.string().uuid(),
+        password: z.string().min(MIN_PASSWORD_LENGTH, PASSWORD_MIN_LENGTH_ERROR),
+      })
+      .parse(data),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    const { data: canResetPassword, error: roleError } = await context.supabase.rpc("has_any_role", {
+      _user_id: context.userId,
+      _roles: ["admin", "owner"],
+    });
+    if (roleError) throw new Error(roleError.message);
+    if (!canResetPassword) throw new Error("Forbidden: Owner or Admin only");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: s } = await supabaseAdmin.from("staff").select("user_id").eq("id", data.id).maybeSingle();
     if (!s?.user_id) throw new Error("This user has no login account linked.");

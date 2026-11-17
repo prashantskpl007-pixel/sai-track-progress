@@ -102,6 +102,7 @@ import { EnquiryModule } from "@/components/EnquiryModule";
 import { useMasters } from "@/hooks/use-masters";
 import { deriveCommission, deriveFinance } from "@/lib/field-config";
 import { istDate, isCompleted, workflowStatusOf } from "@/lib/overview-metrics";
+import { isPasswordLongEnough, PASSWORD_MIN_LENGTH_ERROR } from "@/lib/password-policy";
 
 import {
   listVerificationPartners,
@@ -1818,7 +1819,7 @@ function StaffFormDialog({ onSubmit }: { onSubmit: (values: any) => Promise<void
           <Field label="Mobile"><Input value={values.mobileNumber} onChange={(e) => setValues({ ...values, mobileNumber: e.target.value })} /></Field>
           <Field label="Email (login)"><Input type="email" value={values.email} onChange={(e) => setValues({ ...values, email: e.target.value })} /></Field>
         </div>
-        <Field label="Password (min 6 chars)">
+        <Field label="Password (minimum 4 characters)">
           <Input type="text" value={values.password} onChange={(e) => setValues({ ...values, password: e.target.value })} />
         </Field>
         <Field label="Profile Photo URL (optional)">
@@ -1827,7 +1828,7 @@ function StaffFormDialog({ onSubmit }: { onSubmit: (values: any) => Promise<void
       </div>
       <DialogFooter>
         <Button
-          disabled={busy || !values.fullName || !values.email || values.password.length < 6}
+          disabled={busy || !values.fullName || !values.email || !isPasswordLongEnough(values.password)}
           onClick={async () => {
             setBusy(true);
             await onSubmit({
@@ -1926,18 +1927,30 @@ function StaffPasswordDialog({
   resetFn: ReturnType<typeof useServerFn<typeof resetStaffPassword>>;
 }) {
   const [pwd, setPwd] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
   const [busy, setBusy] = useState(false);
   return (
     <DialogContent className="max-w-md">
       <DialogHeader><DialogTitle>Reset password · {staff.full_name}</DialogTitle></DialogHeader>
-      <Field label="New password (min 6 chars)">
+      <Field label="New password (minimum 4 characters)">
         <Input type="text" value={pwd} onChange={(e) => setPwd(e.target.value)} />
+      </Field>
+      <Field label="Confirm new password">
+        <Input type="password" value={confirmPwd} onChange={(e) => setConfirmPwd(e.target.value)} />
       </Field>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>Cancel</Button>
         <Button
-          disabled={busy || pwd.length < 6}
+          disabled={busy}
           onClick={async () => {
+            if (!isPasswordLongEnough(pwd)) {
+              toast.error(PASSWORD_MIN_LENGTH_ERROR);
+              return;
+            }
+            if (pwd !== confirmPwd) {
+              toast.error("Passwords do not match.");
+              return;
+            }
             setBusy(true);
             try {
               await resetFn({ data: { id: staff.id, password: pwd } });

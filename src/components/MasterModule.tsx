@@ -32,6 +32,7 @@ import {
 import { useMasters, notifyMastersChanged, type MasterRole } from "@/hooks/use-masters";
 import { FieldConfigManager } from "@/components/FieldConfigManager";
 import { PermissionsManager } from "@/components/PermissionsManager";
+import { isPasswordLongEnough, PASSWORD_MIN_LENGTH_ERROR } from "@/lib/password-policy";
 
 type Staff = Record<string, any>;
 
@@ -257,6 +258,7 @@ function StaffManager({ staff, onChanged }: { staff: Staff[]; onChanged: () => P
   const [editing, setEditing] = useState<Staff | null>(null);
   const [pwdFor, setPwdFor] = useState<Staff | null>(null);
   const [pwd, setPwd] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
   const [resetting, setResetting] = useState(false);
 
   async function remove(s: Staff) {
@@ -325,7 +327,7 @@ function StaffManager({ staff, onChanged }: { staff: Staff[]; onChanged: () => P
                       <Button size="sm" variant="outline" className="mr-2" onClick={() => { setEditing(s); setOpen(true); }}>
                         <Pencil className="h-3 w-3" />
                       </Button>
-                      <Button size="sm" variant="outline" className="mr-2" onClick={() => { setPwdFor(s); setPwd(""); }}>
+                      <Button size="sm" variant="outline" className="mr-2" onClick={() => { setPwdFor(s); setPwd(""); setConfirmPwd(""); }}>
                         <KeyRound className="h-3 w-3" />
                       </Button>
                       <Button size="sm" variant="outline" onClick={() => remove(s)}>
@@ -390,12 +392,29 @@ function StaffManager({ staff, onChanged }: { staff: Staff[]; onChanged: () => P
         <Dialog open onOpenChange={(o) => !o && setPwdFor(null)}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Reset password — {pwdFor.full_name}</DialogTitle></DialogHeader>
-            <Input type="text" placeholder="New password (minimum 6 characters)" value={pwd} onChange={(e) => setPwd(e.target.value)} />
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>New password (minimum 4 characters)</Label>
+                <Input type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Confirm new password</Label>
+                <Input type="password" value={confirmPwd} onChange={(e) => setConfirmPwd(e.target.value)} />
+              </div>
+            </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setPwdFor(null)}>Cancel</Button>
               <Button
-                disabled={resetting || pwd.length < 6}
+                disabled={resetting}
                 onClick={async () => {
+                  if (!isPasswordLongEnough(pwd)) {
+                    toast.error(PASSWORD_MIN_LENGTH_ERROR);
+                    return;
+                  }
+                  if (pwd !== confirmPwd) {
+                    toast.error("Passwords do not match.");
+                    return;
+                  }
                   setResetting(true);
                   try {
                     await resetFn({ data: { id: pwdFor.id, password: pwd } });
@@ -488,7 +507,7 @@ function StaffDialog({
           {!staff && (
             <div className="space-y-2 sm:col-span-2">
               <Label>Password *</Label>
-              <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Minimum 6 characters" />
+            <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Minimum 4 characters" />
             </div>
           )}
           <div className="flex items-center gap-3 sm:col-span-2">
@@ -500,7 +519,7 @@ function StaffDialog({
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
             className="bg-gold-gradient text-gold-foreground shadow-gold"
-            disabled={saving || !userId || !fullName.trim() || !roleName || (!staff && password.length < 6)}
+            disabled={saving || !userId || !fullName.trim() || !roleName || (!staff && !isPasswordLongEnough(password))}
             onClick={async () => {
               setSaving(true);
               try {

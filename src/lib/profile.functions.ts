@@ -1,12 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { MIN_PASSWORD_LENGTH, PASSWORD_MIN_LENGTH_ERROR } from "@/lib/password-policy";
 
 /** Change the password of the currently signed-in user. */
 export const changeMyPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { password: string }) =>
-    z.object({ password: z.string().min(6) }).parse(d),
+    z.object({ password: z.string().min(MIN_PASSWORD_LENGTH, PASSWORD_MIN_LENGTH_ERROR) }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

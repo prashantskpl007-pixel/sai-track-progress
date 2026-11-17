@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { MIN_PASSWORD_LENGTH, PASSWORD_MIN_LENGTH_ERROR } from "@/lib/password-policy";
 
 async function assertAdminOrManager(ctx: { supabase: any; userId: string }) {
   const { data } = await ctx.supabase.rpc("has_any_role", {
@@ -39,7 +40,7 @@ export const createVerificationPartner = createServerFn({ method: "POST" })
           fullName: z.string().min(2),
           email: z.string().email(),
           mobileNumber: z.string().min(6),
-          password: z.string().min(6),
+          password: z.string().min(MIN_PASSWORD_LENGTH, PASSWORD_MIN_LENGTH_ERROR),
           profilePhotoUrl: z.string().url().nullable().optional(),
           designation: z.string().optional(),
         })
